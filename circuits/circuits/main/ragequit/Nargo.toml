@@ -1,0 +1,10 @@
+[package]
+name = "ragequit"
+type = "bin"
+authors = [""]
+
+[dependencies]
+poseidon = { tag = "v0.1.1", git = "https://github.com/noir-lang/poseidon" }
+trees = { tag = "merkle-trees-v0.0.1", git = "https://github.com/privacy-scaling-explorations/zk-kit.noir", directory = "packages/merkle-trees" }
+joinsplit = { path = "../../lib/joinsplit" }
+utxo = { path = "../../lib/utxo" }

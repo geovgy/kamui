@@ -1,0 +1,83 @@
+pub mod notes;
+use notes::{InputNote, OutputNote, WormholeNote, get_wormhole_pseudo_nullifier};
+use trees::merkle::MerkleTree;
+use trees::types::{MembershipProver, MT_Creator};
+use poseidon::poseidon2::Poseidon2;
+
+pub struct JoinSplit<let M: u32, let N: u32, let C: u32> {
+    shielded_root: Field,
+    wormhole_root: Field,
+    asset_id: Field,
+    owner_address: Field,
+    input_notes: [InputNote<M>; N],
+    output_notes: [OutputNote; C],
+    wormhole_note: Option<WormholeNote>,
+    wormhole_leaf_index: Option<Field>,
+    wormhole_leaf_siblings: Option<[Field; M]>,
+    wormhole_approved: Option<bool>,
+    wormhole_pseudo_secret: Option<Field>, // Only required if no wormhole note is provided (to obfuscate whether a wormhole note is provided or not)
+}
+
+fn hasher<let N: u32>(inputs: [Field; N]) -> Field {
+    Poseidon2::hash(inputs, N)
+}
+
+pub impl <let M: u32, let N: u32, let C: u32> JoinSplit<M, N, C> {
+    pub fn new(shielded_root: Field, wormhole_root: Field, asset_id: Field, owner_address: Field, input_notes: [InputNote<M>; N], output_notes: [OutputNote; C], wormhole_note: Option<WormholeNote>, wormhole_leaf_index: Option<Field>, wormhole_leaf_siblings: Option<[Field; M]>, wormhole_approved: Option<bool>, wormhole_pseudo_secret: Option<Field>) -> Self {
+        Self { shielded_root, wormhole_root, asset_id, owner_address, input_notes, output_notes, wormhole_note, wormhole_leaf_index, wormhole_leaf_siblings, wormhole_approved, wormhole_pseudo_secret }
+    }
+
+    // Returns (wormhole nullifier, input nullifiers, output commitments)
+    // If no wormhole note is provided, then wormhole nullifier can be a pseudo nullifier to hide onchain whether a wormhole note is provided or not
+    pub fn execute(self) -> (Field, [Field; N], [Field; C]) {
+        let mut totalAmountIn = 0;
+        let mut totalAmountOut = 0;
+
+        let mut wormhole_nullifier = 0;
+        let mut input_nullifiers: [Field; N] = [0; N];
+        let mut output_commitments: [Field; C] = [0; C];
+
+        // Verify wormhole note (if provided - add to totalAmountIn)
+        if self.wormhole_note.is_some() {
+            let wormhole_note = self.wormhole_note.unwrap();
+            assert(wormhole_note.asset_id == self.asset_id, "Wormhole note asset id must match asset id");
+            let is_approved = self.wormhole_approved.unwrap();
+            assert(is_approved, "Wormhole note must be approved");
+            let wormhole_leaf = wormhole_note.to_burn_commitment(is_approved);
+            let wormhole_tree = MerkleTree::from(self.wormhole_root, hasher);
+            wormhole_tree.membership(wormhole_leaf, self.wormhole_leaf_index.unwrap(), self.wormhole_leaf_siblings.unwrap());
+            wormhole_nullifier = wormhole_note.get_nullifier();
+            totalAmountIn += wormhole_note.amount;
+        } else {
+            // Create a pseudo nullifier
+            assert(self.wormhole_pseudo_secret.is_some(), "Wormhole pseudo secret is required for pseudo nullifier");
+            wormhole_nullifier = get_wormhole_pseudo_nullifier(self.owner_address, self.asset_id, self.wormhole_pseudo_secret.unwrap());
+        }
+
+        // Verify input notes are valid
+        let shielded_tree = MerkleTree::from(self.shielded_root, hasher);
+        for i in 0..N {
+            let input_note = self.input_notes[i];
+            if input_note.amount != 0 {
+                let commitment = input_note.to_commitment(self.owner_address, self.asset_id);
+                shielded_tree.membership(commitment, input_note.leaf_index, input_note.leaf_siblings);
+                totalAmountIn += input_note.amount;
+            }
+            input_nullifiers[i] = input_note.get_nullifier(self.owner_address, self.asset_id);
+        }
+
+        // Verify output notes are valid
+        for i in 0..C {
+            let output_note = self.output_notes[i];
+            assert(output_note.amount != 0, "Output note amount cannot be 0");
+            totalAmountOut += output_note.amount;
+            output_commitments[i] = output_note.to_commitment(self.asset_id);
+        }
+
+        // Verify sums of input (+ wormhole) and output notes are equal
+        assert(totalAmountIn == totalAmountOut, "Total amount in and out must be equal");
+
+        // Return (wormhole nullifier, input nullifiers, output commitments)
+        (wormhole_nullifier, input_nullifiers, output_commitments)
+    }
+}
