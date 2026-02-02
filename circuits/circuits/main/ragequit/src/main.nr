@@ -1,12 +1,6 @@
 use joinsplit::notes::WormholeNote;
-use poseidon::poseidon2::Poseidon2;
-use trees::merkle::MerkleTree;
-use trees::types::{MembershipProver, MT_Creator};
+use joinsplit::assert_merkle_leaf_membership;
 use utxo::MERKLE_TREE_DEPTH;
-
-fn hasher<let N: u32>(inputs: [Field; N]) -> Field {
-    Poseidon2::hash(inputs, N)
-}
 
 fn main(
     wormhole_root: pub Field,
@@ -17,7 +11,6 @@ fn main(
 ) -> pub (Field, Field, Field) {
     // wormhole commitment, nullifier and sender address
     let wormhole_leaf = wormhole_note.to_burn_commitment(is_approved);
-    let wormhole_tree = MerkleTree::from(wormhole_root, hasher);
-    wormhole_tree.membership(wormhole_leaf, wormhole_leaf_index, wormhole_leaf_siblings);
+    assert_merkle_leaf_membership(wormhole_root, wormhole_leaf, wormhole_leaf_index, wormhole_leaf_siblings);
     (wormhole_leaf, wormhole_note.get_nullifier(), wormhole_note.sender)
 }

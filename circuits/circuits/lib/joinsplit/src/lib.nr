@@ -41,7 +41,7 @@ fn calculate_root<let M: u32>(leaf: Field, index: Field, paths: [Field; M]) -> F
     hash
 }
 
-fn assert_merkle_leaf_membership<let M: u32>(root: Field, leaf: Field, index: Field, paths: [Field; M]) {
+pub fn assert_merkle_leaf_membership<let M: u32>(root: Field, leaf: Field, index: Field, paths: [Field; M]) {
     assert(calculate_root(leaf, index, paths) == root, "Merkle leaf membership check failed");
 }
 

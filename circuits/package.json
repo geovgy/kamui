@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "for f in circuits/main/*; do if [ -d \"$f\" ]; then (cd \"$f\" && nargo compile && nargo build); fi; done",
-    "test": "for f in test/*.test.ts; do bun test $f; done"
+    "test": "bun test tests/*"
   },
   "devDependencies": {
     "@types/bun": "latest"
