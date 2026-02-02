@@ -77,7 +77,7 @@ pub impl WormholeNote {
     }
 
     pub fn get_burn_address(self) -> Field {
-        let zk_wormhole = Field::from_le_bytes("ZKWORMHOLE".as_bytes());
+        let zk_wormhole = Field::from_be_bytes("ZKWORMHOLE".as_bytes());
         let hash = hash([self.recipient, self.wormhole_secret, zk_wormhole]);
         let hash_bytes: [u8; 32] = hash.to_be_bytes();
         let mut address_bytes: [u8; 20] = [0; 20];

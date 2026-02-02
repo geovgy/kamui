@@ -1,6 +1,6 @@
-import { TransferType, type InputNote, type OutputNote, type WormholeDeposit, type WormholeNote } from "./types";
+import { TransferType, type InputNote, type OutputNote, type WormholeNote } from "./types";
 import { poseidon2Hash } from "@zkpassport/poseidon2";
-import { toHex, type Address } from "viem";
+import { bytesToHex, stringToHex, toBytes, toHex, type Address } from "viem";
 
 export function getRecipientHash(recipient: Address, blinding: bigint): bigint {
   return poseidon2Hash([BigInt(recipient), blinding]);
@@ -19,15 +19,16 @@ export function getNullifier(ownerAddress: Address, assetId: bigint, inputNote: 
   return poseidon2Hash([inputNote.leaf_index, inputNote.blinding, secretCommitment]);
 }
 
-export function getWormholeBurnAddress(recipient: Address, wormholeSecret: bigint): bigint {
-  return poseidon2Hash([BigInt(recipient), wormholeSecret, BigInt("ZKWORMHOLE")]);
+export function getWormholeBurnAddress(recipient: Address, wormholeSecret: bigint): Address {
+  const hash = poseidon2Hash([BigInt(recipient), wormholeSecret, BigInt(stringToHex("ZKWORMHOLE"))]);
+  return bytesToHex(toBytes(hash,{ size: 32 }).slice(12, 32));
 }
 
 export function getWormholeBurnCommitment(args: WormholeNote & {
   approved: boolean;
 }): bigint {
   const burnAddress = getWormholeBurnAddress(args.recipient, args.wormhole_secret);
-  return poseidon2Hash([args.approved ? 1n : 0n, burnAddress, args.asset_id, BigInt(args.sender), args.amount]);
+  return poseidon2Hash([BigInt(args.approved), BigInt(burnAddress), args.asset_id, BigInt(args.sender), args.amount]);
 }
 
 export function getWormholeNullifier(args: WormholeNote): bigint {
