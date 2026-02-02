@@ -8,7 +8,7 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
     pub_key_x: [u8; 32],
     pub_key_y: [u8; 32],
     signature: [u8; 64],
-    hashed_message: [u8; 32], // pub - EIP-712 message hash % SNARK max field size
+    hashed_message: Field, // pub - EIP-712 message hash % SNARK max field size
     shielded_root: Field, // pub
     wormhole_root: Field, // pub
     asset_id: Field,
@@ -21,8 +21,9 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
     wormhole_approved: Option<bool>,
     wormhole_pseudo_secret: Option<Field>,
 ) -> (Field, [Field; N], [Field; C]) {
-    let address = ecrecover(pub_key_x, pub_key_y, signature, hashed_message);
-    assert(address == owner_address, "Invalid signature");
+    let message: [u8; 32] = hashed_message.to_be_bytes();
+    let address = ecrecover(pub_key_x, pub_key_y, signature, message);
+    assert(address == owner_address, "signer address is not owner address");
 
     let joinsplit = JoinSplit::new(
         shielded_root, 

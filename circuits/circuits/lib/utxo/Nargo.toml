@@ -5,4 +5,4 @@ authors = [""]
 
 [dependencies]
 joinsplit = { path = "../joinsplit" }
-ecrecover = { tag = "v1.0.0", git = "https://github.com/colinnielsen/ecrecover-noir" }
+ecrecover = { path = "../ecrecover" }

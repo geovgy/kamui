@@ -3,10 +3,21 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "build": "for f in circuits/main/*; do if [ -d \"$f\" ]; then (cd \"$f\" && nargo compile && nargo build); fi; done",
+    "test": "for f in test/*.test.ts; do bun test $f; done"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@aztec/bb.js": "3.0.0-nightly.20260102",
+    "@noir-lang/noir_js": "1.0.0-beta.18",
+    "@zk-kit/lean-imt": "^2.2.4",
+    "@zkpassport/poseidon2": "^0.6.2",
+    "viem": "^2.45.1"
   }
 }

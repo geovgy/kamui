@@ -4,6 +4,5 @@ type = "lib"
 authors = [""]
 
 [dependencies]
-ecrecover = { tag = "v1.0.0", git = "https://github.com/colinnielsen/ecrecover-noir" }
 poseidon = { tag = "v0.1.1", git = "https://github.com/noir-lang/poseidon" }
 trees = { tag = "merkle-trees-v0.0.1", git = "https://github.com/privacy-scaling-explorations/zk-kit.noir", directory = "packages/merkle-trees" }

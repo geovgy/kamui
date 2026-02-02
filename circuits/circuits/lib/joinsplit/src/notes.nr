@@ -1,5 +1,9 @@
 use poseidon::poseidon2::Poseidon2;
 
+fn hash<let N: u32>(inputs: [Field; N]) -> Field {
+    Poseidon2::hash(inputs, N)
+}
+
 pub struct InputNote<let M: u32> {
     pub blinding: Field,
     pub amount: Field,
@@ -13,13 +17,13 @@ pub impl <let M: u32> InputNote<M> {
     }
 
     pub fn to_commitment(self, owner_address: Field, asset_id: Field) -> Field {
-        let blinded_owner = Poseidon2::hash([owner_address, self.blinding], 2);
-        Poseidon2::hash([blinded_owner, asset_id, self.amount, 1], 4) // Should always be a transfer as transfer type
+        let blinded_owner = hash([owner_address, self.blinding]);
+        hash([blinded_owner, asset_id, self.amount, 1]) // Should always be a transfer as transfer type
     }
 
     pub fn get_nullifier(self, owner_address: Field, asset_id: Field) -> Field {
-        let secret_commitment = Poseidon2::hash([owner_address, asset_id, self.amount], 3);
-        Poseidon2::hash([self.leaf_index, self.blinding, secret_commitment], 3)
+        let secret_commitment = hash([owner_address, asset_id, self.amount]);
+        hash([self.leaf_index, self.blinding, secret_commitment])
     }
 }
 
@@ -41,13 +45,13 @@ pub impl OutputNote {
             // If its a withdrawal, then recipient should be Ethereum address and not hashed
             self.recipient
         } else {
-            Poseidon2::hash([self.recipient, self.blinding], 2)
+            hash([self.recipient, self.blinding])
         }
     }
 
     pub fn to_commitment(self, asset_id: Field) -> Field {
         let recipient_hash = self.get_recipient_hash();
-        Poseidon2::hash([recipient_hash, asset_id, self.amount, self.transfer_type as Field], 3)
+        hash([recipient_hash, asset_id, self.amount, self.transfer_type as Field])
     }
 }
 
@@ -63,8 +67,8 @@ pub struct WormholeNote {
 }
 
 pub fn get_wormhole_pseudo_nullifier(address: Field, asset_id: Field, secret: Field) -> Field {
-    let pseudo_commitment = Poseidon2::hash([address, asset_id, 0, 0], 4);
-    Poseidon2::hash([1, secret, pseudo_commitment], 3)
+    let pseudo_commitment = hash([address, asset_id, 0, 0]);
+    hash([1, secret, pseudo_commitment])
 }
 
 pub impl WormholeNote {
@@ -74,7 +78,7 @@ pub impl WormholeNote {
 
     pub fn get_burn_address(self) -> Field {
         let zk_wormhole = Field::from_le_bytes("ZKWORMHOLE".as_bytes());
-        let hash = Poseidon2::hash([self.recipient, self.wormhole_secret, zk_wormhole], 3);
+        let hash = hash([self.recipient, self.wormhole_secret, zk_wormhole]);
         let hash_bytes: [u8; 32] = hash.to_be_bytes();
         let mut address_bytes: [u8; 20] = [0; 20];
         for i in 0..20 {
@@ -87,11 +91,11 @@ pub impl WormholeNote {
         let burn_address = self.get_burn_address();
         // 1 signals commitment was approved
         // 0 signals commitment was not approved
-        Poseidon2::hash([approved as Field, burn_address, self.asset_id, self.sender, self.amount], 5)
+        hash([approved as Field, burn_address, self.asset_id, self.sender, self.amount])
     }
 
     pub fn get_nullifier(self) -> Field {
-        let secret_commitment = Poseidon2::hash([self.recipient, self.asset_id, self.sender, self.amount], 4);
-        Poseidon2::hash([1, self.wormhole_secret, secret_commitment], 3)
+        let secret_commitment = hash([self.recipient, self.asset_id, self.sender, self.amount]);
+        hash([1, self.wormhole_secret, secret_commitment])
     }
 }

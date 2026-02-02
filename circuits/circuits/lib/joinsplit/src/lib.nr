@@ -1,7 +1,5 @@
 pub mod notes;
 use notes::{InputNote, OutputNote, WormholeNote, get_wormhole_pseudo_nullifier};
-use trees::merkle::MerkleTree;
-use trees::types::{MembershipProver, MT_Creator};
 use poseidon::poseidon2::Poseidon2;
 
 pub struct JoinSplit<let M: u32, let N: u32, let C: u32> {
@@ -20,6 +18,31 @@ pub struct JoinSplit<let M: u32, let N: u32, let C: u32> {
 
 fn hasher<let N: u32>(inputs: [Field; N]) -> Field {
     Poseidon2::hash(inputs, N)
+}
+
+// M is the max depth of the merkle tree
+fn calculate_root<let M: u32>(leaf: Field, index: Field, paths: [Field; M]) -> Field {
+    let mut hash = leaf;
+
+    let mut idx = index as u32;
+    for i in 0..paths.len() {
+        if paths[i] != 0 {
+            let is_right = ((idx & 1) == 0) as bool;
+            let (hash_left, hash_right) = if is_right {
+                (hash, paths[i])
+            } else {
+                (paths[i], hash)
+            };
+            hash = hasher([hash_left, hash_right]);
+            idx >>= 1;
+        }
+    };
+
+    hash
+}
+
+fn assert_merkle_leaf_membership<let M: u32>(root: Field, leaf: Field, index: Field, paths: [Field; M]) {
+    assert(calculate_root(leaf, index, paths) == root, "Merkle leaf membership check failed");
 }
 
 pub impl <let M: u32, let N: u32, let C: u32> JoinSplit<M, N, C> {
@@ -44,8 +67,7 @@ pub impl <let M: u32, let N: u32, let C: u32> JoinSplit<M, N, C> {
             let is_approved = self.wormhole_approved.unwrap();
             assert(is_approved, "Wormhole note must be approved");
             let wormhole_leaf = wormhole_note.to_burn_commitment(is_approved);
-            let wormhole_tree = MerkleTree::from(self.wormhole_root, hasher);
-            wormhole_tree.membership(wormhole_leaf, self.wormhole_leaf_index.unwrap(), self.wormhole_leaf_siblings.unwrap());
+            assert_merkle_leaf_membership(self.wormhole_root, wormhole_leaf, self.wormhole_leaf_index.unwrap(), self.wormhole_leaf_siblings.unwrap());
             wormhole_nullifier = wormhole_note.get_nullifier();
             totalAmountIn += wormhole_note.amount;
         } else {
@@ -55,12 +77,11 @@ pub impl <let M: u32, let N: u32, let C: u32> JoinSplit<M, N, C> {
         }
 
         // Verify input notes are valid
-        let shielded_tree = MerkleTree::from(self.shielded_root, hasher);
         for i in 0..N {
             let input_note = self.input_notes[i];
             if input_note.amount != 0 {
                 let commitment = input_note.to_commitment(self.owner_address, self.asset_id);
-                shielded_tree.membership(commitment, input_note.leaf_index, input_note.leaf_siblings);
+                assert_merkle_leaf_membership(self.shielded_root, commitment, input_note.leaf_index, input_note.leaf_siblings);
                 totalAmountIn += input_note.amount;
             }
             input_nullifiers[i] = input_note.get_nullifier(self.owner_address, self.asset_id);
