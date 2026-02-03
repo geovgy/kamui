@@ -59,6 +59,17 @@ contract Kamui is IKamui, EIP712 {
         Withdrawal[] withdrawals;
     }
 
+    struct RagequitTx {
+        address sender;
+        address burnAddress;
+        address asset;
+        uint256 id;
+        uint256 amount;
+        bool    approved;
+        bytes32 wormholeRoot;
+        bytes32 wormholeNullifier;
+    }
+
     struct PoolInfo {
         bytes32 poolId;
         address implementation;
@@ -201,6 +212,31 @@ contract Kamui is IKamui, EIP712 {
             IVaultPool(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
             // TODO: emit event
         }
+    }
+
+    function ragequit(RagequitTx calldata ragequitTx, bytes calldata proof) external {
+        require(isWormholeRoot[ragequitTx.wormholeRoot], "Kamui: wormhole root is not valid");
+        require(!wormholeNullifierUsed[ragequitTx.wormholeNullifier], "Kamui: wormhole nullifier is already used");
+
+        // get wormhole commitment
+        bytes32 assetId = _getAssetId(ragequitTx.asset, ragequitTx.id);
+        uint256 commitment = _getWormholeCommitment(ragequitTx.sender, ragequitTx.burnAddress, assetId, ragequitTx.amount, ragequitTx.approved);
+
+        bytes32[] memory inputs = new bytes32[](4);
+        inputs[0] = ragequitTx.wormholeRoot;
+        inputs[1] = bytes32(commitment);
+        inputs[2] = ragequitTx.wormholeNullifier;
+        inputs[3] = bytes32(bytes20(ragequitTx.sender));
+
+        // verify proof
+        require(ragequitVerifier.verify(proof, inputs), "Kamui: proof is not valid");
+
+        // mark wormhole nullifier as used
+        wormholeNullifierUsed[ragequitTx.wormholeNullifier] = true;
+
+        // return asset amount back to sender
+        IVaultPool(ragequitTx.asset).unshield(ragequitTx.sender, ragequitTx.id, ragequitTx.amount);
+        // TODO: emit event
     }
 
     function _formatPublicInputs(ShieldedTx memory shieldedTx, bytes32 messageHash) internal view returns (bytes32[] memory inputs) {
