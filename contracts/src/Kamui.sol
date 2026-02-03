@@ -60,11 +60,7 @@ contract Kamui is IKamui, EIP712, Ownable {
     }
 
     struct RagequitTx {
-        address sender;
-        address burnAddress;
-        address asset;
-        uint256 id;
-        uint256 amount;
+        uint256 entryId;
         bool    approved;
         bytes32 wormholeRoot;
         bytes32 wormholeNullifier;
@@ -84,26 +80,29 @@ contract Kamui is IKamui, EIP712, Ownable {
     struct TransferMetadata {
         address from;
         address to;
-        bytes32 assetId;
+        address asset;
+        uint256 id;
         uint256 amount;
     }
 
-    uint256 public currentWormholeTransferIndex;
+    uint256 public totalWormholeCommitments;
 
-    uint256 internal _totalTransfers;
-    mapping(uint256 index => TransferMetadata) internal _transfers;
+    uint256 public totalWormholeEntries;
+    mapping(uint256 entryId => TransferMetadata) internal _wormholeEntries;
+    mapping(uint256 entryId => bool) internal _wormholeEntriesCommitted;
 
     mapping(address approver => bool) internal _isWormholeApprover;
 
-    event TransferAdded(uint256 index, address indexed token, address from, address to, uint256 id, uint256 amount);
+    event WormholeEntry(uint256 indexed entryId, address indexed token, address indexed from, address to, uint256 id, uint256 amount);
+    event WormholeCommitment(uint256 indexed entryId, uint256 indexed commitment, uint256 treeId, uint256 leafIndex, bytes32 assetId, address from, address to, uint256 amount, bool approved);
+    event WormholeNullifier(bytes32 indexed nullifier);
 
-    event PoolCreated(address pool, address implementation, address asset, bytes initData);
-    event Unshield(address to, address asset, uint256 id, uint256 amount);
     event ShieldCommitment(uint256 treeId, uint256 leafIndex, uint256 indexed commitment);
     event ShieldNullifier(bytes32 indexed nullifier);
-    event WormholeCommitment(uint256 treeId, uint256 leafIndex, uint256 indexed commitment, TransferMetadata metadata, bool approved);
-    event WormholeNullifier(bytes32 indexed nullifier);
-    event Ragequit(uint256 indexed commitment, address sender, address burnAddress, address asset, uint256 id, uint256 amount, bool approved);
+
+    event Ragequit(uint256 indexed entryId, address indexed quitter, address indexed returnedTo, address asset, uint256 id, uint256 amount);
+
+    event PoolCreated(address pool, address implementation, address asset, bytes initData);
 
     event VerifierAdded(address verifier, uint256 inputs, uint256 outputs);
     event PoolImplementationSet(address implementation, bool isApproved);
@@ -141,38 +140,59 @@ contract Kamui is IKamui, EIP712, Ownable {
         return poseidon2.hash_5(approved ? 1 : 0, uint256(uint160(from)), uint256(uint160(to)), uint256(assetId), amount);
     }
 
-    function appendWormholeTransfer(WormholeTransfer memory transferData) external {
+    function appendWormholeLeaf(uint256 entryId, bool approved) external {
         require(_isWormholeApprover[msg.sender], "Kamui: caller is not a wormhole approver");
-        require(transferData.index == currentWormholeTransferIndex, "Kamui: not current wormhole transfer index");
-        TransferMetadata memory transferMetadata = _transfers[transferData.index];
-        uint256 commitment = _getWormholeCommitment(transferMetadata.from, transferMetadata.to, transferMetadata.assetId, transferMetadata.amount, transferData.approved);
+        _appendWormholeLeaf(entryId, approved, false);
+    }
+
+    // Appends leaf as rejected entry to wormhole tree
+    // Original sender can auto-reject their own entry to expedite ragequitting
+    function initiateRagequit(uint256 entryId) external {
+        _appendWormholeLeaf(entryId, false, true);
+    }
+
+    function _appendWormholeLeaf(uint256 entryId, bool approved, bool isRagequit) internal {
+        require(entryId < totalWormholeEntries, "Kamui: entry id does not exist");
+        require(!_wormholeEntriesCommitted[entryId], "Kamui: entry is already committed in wormhole tree");
+        TransferMetadata memory entry = _wormholeEntries[entryId];
+        if (isRagequit) {
+            require(entry.from == msg.sender, "Kamui: caller is not the original sender");
+            require(!approved, "Kamui: entry cannot be appended as approved");
+        }
+        bytes32 assetId = _getAssetId(entry.asset, entry.id);
+        uint256 commitment = _getWormholeCommitment(entry.from, entry.to, assetId, entry.amount, approved);
         if (_isWormholeTreeFull()) {
             _createWormholeTree();
         }
         wormholeTrees[currentWormholeTreeId].insert(commitment);
+        _wormholeEntriesCommitted[entryId] = true;
         unchecked {
-            currentWormholeTransferIndex++;
+            totalWormholeCommitments++;
         }
-        emit WormholeCommitment(currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, commitment, transferMetadata, transferData.approved);
+        emit WormholeCommitment(entryId, commitment, currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, assetId, entry.from, entry.to, entry.amount, approved);
     }
 
-    function appendManyWormholeTransfers(WormholeTransfer[] memory transferDatas) external {
+    function appendManyWormholeLeaves(WormholePreCommitment[] memory nodes) external {
         require(_isWormholeApprover[msg.sender], "Kamui: caller is not a wormhole approver");
-        require(transferDatas.length > 0 && transferDatas.length <= (2 ** MERKLE_TREE_DEPTH) / 5, "Kamui: invalid transfer datas length");
-        if (_isWormholeTreeOverflow(transferDatas.length)) {
+        require(nodes.length > 0 && nodes.length <= (2 ** MERKLE_TREE_DEPTH) / 5, "Kamui: invalid nodes length");
+        for (uint256 i = 0; i < nodes.length; i++) {
+            require(!_wormholeEntriesCommitted[nodes[i].entryId], "Kamui: entry is already committed in wormhole tree");
+            require(nodes[i].entryId < totalWormholeEntries, "Kamui: entry id does not exist");
+        }
+        if (_isWormholeTreeOverflow(nodes.length)) {
             _createWormholeTree();
         }
-        uint256[] memory commitments = new uint256[](transferDatas.length);
-        for (uint256 i = 0; i < transferDatas.length; i++) {
-            uint256 index = currentWormholeTransferIndex + i;
-            require(transferDatas[i].index == index, "Kamui: not current wormhole transfer index");
-            TransferMetadata memory data = _transfers[index];
-            commitments[i] = _getWormholeCommitment(data.from, data.to, data.assetId, data.amount, transferDatas[i].approved);
-            emit WormholeCommitment(currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, commitments[i], data, transferDatas[i].approved);
+        uint256[] memory commitments = new uint256[](nodes.length);
+        for (uint256 i = 0; i < nodes.length; i++) {
+            TransferMetadata memory entry = _wormholeEntries[nodes[i].entryId];
+            bytes32 assetId = _getAssetId(entry.asset, entry.id);
+            commitments[i] = _getWormholeCommitment(entry.from, entry.to, assetId, entry.amount, nodes[i].approved);
+            _wormholeEntriesCommitted[nodes[i].entryId] = true;
+            emit WormholeCommitment(nodes[i].entryId, commitments[i], currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, assetId, entry.from, entry.to, entry.amount, nodes[i].approved);
         }
         wormholeTrees[currentWormholeTreeId].insertMany(commitments);
         unchecked {
-            currentWormholeTransferIndex += transferDatas.length;
+            totalWormholeCommitments += nodes.length;
         }
     }
 
@@ -248,7 +268,6 @@ contract Kamui is IKamui, EIP712, Ownable {
         for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
             Withdrawal memory withdrawal = shieldedTx.withdrawals[i];
             IWormhole(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
-            emit Unshield(withdrawal.to, withdrawal.asset, withdrawal.id, withdrawal.amount);
         }
     }
 
@@ -256,15 +275,17 @@ contract Kamui is IKamui, EIP712, Ownable {
         require(isWormholeRoot[ragequitTx.wormholeRoot], "Kamui: wormhole root is not valid");
         require(!wormholeNullifierUsed[ragequitTx.wormholeNullifier], "Kamui: wormhole nullifier is already used");
 
+        TransferMetadata memory entry = _wormholeEntries[ragequitTx.entryId];
+
         // get wormhole commitment
-        bytes32 assetId = _getAssetId(ragequitTx.asset, ragequitTx.id);
-        uint256 commitment = _getWormholeCommitment(ragequitTx.sender, ragequitTx.burnAddress, assetId, ragequitTx.amount, ragequitTx.approved);
+        bytes32 assetId = _getAssetId(entry.asset, entry.id);
+        uint256 commitment = _getWormholeCommitment(entry.from, entry.to, assetId, entry.amount, ragequitTx.approved);
 
         bytes32[] memory inputs = new bytes32[](4);
         inputs[0] = ragequitTx.wormholeRoot;
         inputs[1] = bytes32(commitment);
         inputs[2] = ragequitTx.wormholeNullifier;
-        inputs[3] = bytes32(bytes20(ragequitTx.sender));
+        inputs[3] = bytes32(bytes20(entry.from));
 
         // verify proof
         require(ragequitVerifier.verify(proof, inputs), "Kamui: proof is not valid");
@@ -274,8 +295,8 @@ contract Kamui is IKamui, EIP712, Ownable {
         emit WormholeNullifier(ragequitTx.wormholeNullifier);
 
         // return asset amount back to sender
-        IWormhole(ragequitTx.asset).unshield(ragequitTx.sender, ragequitTx.id, ragequitTx.amount);
-        emit Ragequit(commitment, ragequitTx.sender, ragequitTx.burnAddress, ragequitTx.asset, ragequitTx.id, ragequitTx.amount, ragequitTx.approved);
+        IWormhole(entry.asset).unshield(entry.from, entry.id, entry.amount);
+        emit Ragequit(ragequitTx.entryId, msg.sender, entry.from, entry.asset, entry.id, entry.amount);
     }
 
     function _formatPublicInputs(ShieldedTx memory shieldedTx, bytes32 messageHash) internal view returns (bytes32[] memory inputs) {
@@ -341,28 +362,24 @@ contract Kamui is IKamui, EIP712, Ownable {
         emit PoolCreated(pool, implementation, asset, initData);
     }
 
-    function requestWormholeTransfer(address from, address to, uint256 id, uint256 amount) external returns (uint256 index) {
-        _requireCallerIsPool();
-        // TODO: implement
-        address token = msg.sender; // Every pool is a token (ERC20/ERC721/ERC1155/etc.)
-        index = _totalTransfers;
-        TransferMetadata memory transferData = TransferMetadata({
+    function requestWormholeEntry(address from, address to, uint256 id, uint256 amount) external returns (uint256 index) {
+        // Only pools deployed from this contract can request wormhole entries
+        require(_isPool[msg.sender], "Kamui: caller is not a registered pool");
+        // Every pool is a token (ERC20/ERC721/ERC1155/etc.)
+        address token = msg.sender;
+        index = totalWormholeEntries;
+        TransferMetadata memory metadata = TransferMetadata({
             from: from,
             to: to,
-            assetId: _getAssetId(token, id),
+            asset: token,
+            id: id,
             amount: amount
         });
-        _transfers[index] = transferData;
+        _wormholeEntries[index] = metadata;
         unchecked {
-            _totalTransfers++;
+            totalWormholeEntries++;
         }
-        emit TransferAdded(index, token, from, to, id, amount);
-    }
-
-    // require functions
-
-    function _requireCallerIsPool() internal view {
-        require(_isPool[msg.sender], "Kamui: caller is not a pool");
+        emit WormholeEntry(index, token, from, to, id, amount);
     }
 
     // EIP712 helper functions

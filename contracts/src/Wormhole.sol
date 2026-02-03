@@ -41,11 +41,11 @@ abstract contract Wormhole is IWormhole {
         return to != address(0) && amount > 0;
     }
 
-    function _requestWormholeTransfer(address from, address to, uint256 id, uint256 amount) internal returns (bool submitted, uint256 pendingIndex) {
+    function _requestWormholeEntry(address from, address to, uint256 id, uint256 amount) internal returns (bool submitted, uint256 pendingIndex) {
         if (!_isWormholeEligible(to, amount)) {
             return (false, 0);
         }
-        pendingIndex = kamui.requestWormholeTransfer(from, to, id, amount);
+        pendingIndex = kamui.requestWormholeEntry(from, to, id, amount);
         return (true, pendingIndex);
     }
 }
