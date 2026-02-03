@@ -10,8 +10,9 @@ import {EIP712} from "openzeppelin-contracts/contracts/utils/cryptography/EIP712
 import {SNARK_SCALAR_FIELD} from "./utils/Constants.sol";
 import {Clones} from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import {IVerifier} from "./interfaces/IVerifier.sol";
+import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract Kamui is IKamui, EIP712 {
+contract Kamui is IKamui, EIP712, Ownable {
     using LeanIMT for LeanIMTData;
 
     uint8 public constant MERKLE_TREE_DEPTH = 20;
@@ -95,12 +96,29 @@ contract Kamui is IKamui, EIP712 {
 
     mapping(address approver => bool) internal _isWormholeApprover;
 
-    constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_) EIP712("Kamui", "1") {
+    constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_, address governor_) EIP712("Kamui", "1") Ownable(governor_) {
         poseidon2 = poseidon2_;
         address poseidon2Address = address(poseidon2);
         shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
         wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
         ragequitVerifier = ragequitVerifier_;
+    }
+
+    // Owner functions
+    function addVerifier(IVerifier verifier, uint256 inputs, uint256 outputs) external onlyOwner {
+        require(address(verifier) != address(0), "Kamui: verifier is zero address");
+        address existing = address(_utxoVerifiers[inputs][outputs]);
+        require(existing == address(0), "Kamui: verifier already exists");
+        require(inputs > 0 && outputs > 0, "Kamui: invalid inputs or outputs");
+        _utxoVerifiers[inputs][outputs] = verifier;
+    }
+
+    function setPoolImplementation(address implementation, bool isApproved) external onlyOwner {
+        _isPoolImplementation[implementation] = isApproved;
+    }
+
+    function setWormholeApprover(address approver, bool isApprover) external onlyOwner {
+        _isWormholeApprover[approver] = isApprover;
     }
 
     function _getWormholeCommitment(address from, address to, bytes32 assetId, uint256 amount, bool approved) internal view returns (uint256) {
