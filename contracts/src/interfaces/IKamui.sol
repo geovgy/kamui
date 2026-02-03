@@ -7,9 +7,9 @@ interface IKamui {
         bool    approved;
     }
 
-    function createPool(address implementation, address asset, bytes calldata initData) external;
+    function createPool(address implementation, address asset, bytes calldata initData) external returns (address pool);
     function requestWormholeEntry(address from, address to, uint256 id, uint256 amount) external returns (uint256 index);
-    function appendWormholeLeaf(uint256 entryId, bool approved) external;
     function initiateRagequit(uint256 entryId) external;
+    function appendWormholeLeaf(uint256 entryId, bool approved) external;
     function appendManyWormholeLeaves(WormholePreCommitment[] memory nodes) external;
 }

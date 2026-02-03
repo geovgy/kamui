@@ -14,8 +14,8 @@ abstract contract Wormhole is IWormhole {
         _;
     }
     
-    constructor(address kamui_) {
-        kamui = IKamui(kamui_);
+    constructor(IKamui kamui_) {
+        kamui = kamui_;
     }
 
     // Override this function to initialize the wormhole

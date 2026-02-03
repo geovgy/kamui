@@ -20,7 +20,7 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
     uint256 private _totalShares; // also used as actual supply
     uint256 private _totalAssets;
     
-    constructor(address kamui_) ERC20("", "") Wormhole(kamui_) {}
+    constructor(IKamui kamui_) ERC20("", "") Wormhole(kamui_) {}
 
     function _initialize(address asset_, bytes calldata data_) internal override returns (bool) {
         require(!initialized, "ERC4626Wormhole: already initialized");
@@ -68,6 +68,7 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
 
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         _asset.safeTransferFrom(msg.sender, address(this), assets);
+        _asset.approve(address(vault), assets);
         shares = vault.deposit(assets, address(this));
         _totalShares += shares;
         _totalAssets += assets;
@@ -86,6 +87,8 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
 
     function mint(uint256 shares, address receiver) external returns (uint256 assets) {
         _asset.safeTransferFrom(msg.sender, address(this), assets);
+        uint256 preview = vault.previewMint(shares);
+        _asset.approve(address(vault), preview);
         assets = vault.mint(shares, address(this));
         _totalShares += shares;
         _totalAssets += assets;

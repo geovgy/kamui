@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
+
+import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {ERC4626} from "openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+
+contract MockERC4626 is ERC4626 {
+    constructor(IERC20 underlying) ERC20("MockERC4626", "M4626") ERC4626(underlying) {}
+}

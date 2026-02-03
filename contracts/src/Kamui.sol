@@ -72,10 +72,12 @@ contract Kamui is IKamui, EIP712, Ownable {
         address asset;
         bytes initData;
     }
-    mapping(address pool => PoolInfo) internal _poolInfos;
-    mapping(address pool => bool) internal _isPool;
-    // Owner can register new pool implementations like different types of ERC4626 vaults or for supporting other token standards
-    mapping(address implementation => bool) internal _isPoolImplementation;
+
+    // Registered wormhole pool addresses
+    mapping(address pool => bool) internal _pools;
+
+    // Owner can register new wormhole pool implementations like different types of ERC4626 vaults or for supporting other token standards
+    mapping(address implementation => bool) internal _allowedImplementations;
 
     struct TransferMetadata {
         address from;
@@ -116,6 +118,14 @@ contract Kamui is IKamui, EIP712, Ownable {
         ragequitVerifier = ragequitVerifier_;
     }
 
+    function isPool(address pool) external view returns (bool) {
+        return _pools[pool];
+    }
+
+    function wormholeEntry(uint256 entryId) external view returns (TransferMetadata memory) {
+        return _wormholeEntries[entryId];
+    }
+
     // Owner functions
     function addVerifier(IVerifier verifier, uint256 inputs, uint256 outputs) external onlyOwner {
         require(address(verifier) != address(0), "Kamui: verifier is zero address");
@@ -127,7 +137,7 @@ contract Kamui is IKamui, EIP712, Ownable {
     }
 
     function setPoolImplementation(address implementation, bool isApproved) external onlyOwner {
-        _isPoolImplementation[implementation] = isApproved;
+        _allowedImplementations[implementation] = isApproved;
         emit PoolImplementationSet(implementation, isApproved);
     }
 
@@ -183,12 +193,23 @@ contract Kamui is IKamui, EIP712, Ownable {
             _createWormholeTree();
         }
         uint256[] memory commitments = new uint256[](nodes.length);
+        uint256 startLeafIndex = wormholeTrees[currentWormholeTreeId].size;
         for (uint256 i = 0; i < nodes.length; i++) {
             TransferMetadata memory entry = _wormholeEntries[nodes[i].entryId];
             bytes32 assetId = _getAssetId(entry.asset, entry.id);
             commitments[i] = _getWormholeCommitment(entry.from, entry.to, assetId, entry.amount, nodes[i].approved);
             _wormholeEntriesCommitted[nodes[i].entryId] = true;
-            emit WormholeCommitment(nodes[i].entryId, commitments[i], currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, assetId, entry.from, entry.to, entry.amount, nodes[i].approved);
+            emit WormholeCommitment(
+                nodes[i].entryId,
+                commitments[i],
+                currentWormholeTreeId,
+                startLeafIndex + i,
+                assetId,
+                entry.from,
+                entry.to,
+                entry.amount,
+                nodes[i].approved
+            );
         }
         wormholeTrees[currentWormholeTreeId].insertMany(commitments);
         unchecked {
@@ -337,34 +358,28 @@ contract Kamui is IKamui, EIP712, Ownable {
         return keccak256(abi.encodePacked(asset, id));
     }
 
-    function createPool(address implementation, address asset, bytes calldata initData) external {
-        require(_isPoolImplementation[implementation], "Kamui: implementation is not registered");
+    function createPool(address implementation, address asset, bytes calldata initData) external returns (address pool) {
+        require(_allowedImplementations[implementation], "Kamui: implementation is not registered");
         require(asset != address(0), "Kamui: asset is zero address");
 
         bytes32 poolId = _getPoolId(implementation, asset, initData);
         address target = Clones.predictDeterministicAddress(implementation, poolId);
 
         require(target != address(0), "Kamui: target is zero address");
-        require(!_isPool[target], "Kamui: pool already exists");
+        require(!_pools[target], "Kamui: pool already exists");
         // Deploy clone of implementation
-        address pool = Clones.cloneDeterministic(implementation, poolId);
+        pool = Clones.cloneDeterministic(implementation, poolId);
         require(pool == target, "Kamui: deployed pool is not target address");
         // Initialize the clone
         IWormhole(pool).initialize(asset, initData);
-        // Set the pool info to mapping
-        _poolInfos[pool] = PoolInfo({
-            poolId: poolId,
-            implementation: implementation,
-            asset: asset,
-            initData: initData
-        });
-        _isPool[pool] = true;
+        // Set the pool as registered
+        _pools[pool] = true;
         emit PoolCreated(pool, implementation, asset, initData);
     }
 
     function requestWormholeEntry(address from, address to, uint256 id, uint256 amount) external returns (uint256 index) {
         // Only pools deployed from this contract can request wormhole entries
-        require(_isPool[msg.sender], "Kamui: caller is not a registered pool");
+        require(_pools[msg.sender], "Kamui: caller is not a wormhole pool");
         // Every pool is a token (ERC20/ERC721/ERC1155/etc.)
         address token = msg.sender;
         index = totalWormholeEntries;
