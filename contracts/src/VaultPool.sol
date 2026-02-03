@@ -41,6 +41,12 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         require(_vault.asset() == asset_, "VaultPool: vault asset mismatch");
         vault = _vault;
         _asset = IERC20(asset_);
+        initialized = true;
+    }
+
+    function unshield(address to, uint256 /* id */, uint256 amount) external onlyKamui {
+        // TODO: emit event
+        _mint(to, amount);
     }
 
     function _update(address from, address to, uint256 value) internal virtual override {

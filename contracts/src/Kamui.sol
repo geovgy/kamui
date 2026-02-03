@@ -6,13 +6,18 @@ import {LeanIMT, LeanIMTData} from "./libraries/LeanIMT.sol";
 import {IVaultPool} from "./interfaces/IVaultPool.sol";
 import {VaultPool} from "./VaultPool.sol";
 import {IKamui} from "./interfaces/IKamui.sol";
-
+import {EIP712} from "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
+import {SNARK_SCALAR_FIELD} from "./utils/Constants.sol";
 import {Clones} from "openzeppelin-contracts/contracts/proxy/Clones.sol";
+import {IVerifier} from "./interfaces/IVerifier.sol";
 
-contract Kamui is IKamui {
+contract Kamui is IKamui, EIP712 {
     using LeanIMT for LeanIMTData;
 
     uint8 public constant MERKLE_TREE_DEPTH = 20;
+
+    bytes32 public constant WITHDRAWAL_TYPEHASH = keccak256("Withdrawal(address to,address asset,uint256 id,uint256 amount)");
+    bytes32 public constant SHIELDED_TX_TYPEHASH = keccak256("ShieldedTx(uint64 chainId,bytes32 wormholeRoot,bytes32 wormholeNullifier,bytes32 shieldedRoot,bytes32[] nullifiers,bytes32[] commitments,Withdrawal[] withdrawals)Withdrawal(address to,address asset,uint256 id,uint256 amount)");
 
     IPoseidon2 public immutable poseidon2;
 
@@ -22,6 +27,37 @@ contract Kamui is IKamui {
     mapping(uint256 treeId => LeanIMTData) public shieldedTrees;
     mapping(uint256 treeId => LeanIMTData) public wormholeTrees;
 
+    mapping(bytes32 root => bool) public isWormholeRoot;
+    mapping(bytes32 root => bool) public isShieldedRoot;
+
+    mapping(bytes32 nullifier => bool) public nullifierUsed;
+    mapping(bytes32 nullifier => bool) public wormholeNullifierUsed;
+
+    IVerifier public immutable ragequitVerifier;
+    mapping(uint256 inputs => mapping(uint256 outputs => IVerifier)) internal _utxoVerifiers;
+
+    enum TransferType {
+        NONE,
+        TRANSFER,
+        WITHDRAWAL
+    }
+
+    struct Withdrawal {
+        address to;
+        address asset;
+        uint256 id;
+        uint256 amount;
+    }
+
+    struct ShieldedTx {
+        uint64 chainId;
+        bytes32 wormholeRoot;
+        bytes32 wormholeNullifier;
+        bytes32 shieldedRoot;
+        bytes32[] nullifiers;
+        uint256[] commitments;
+        Withdrawal[] withdrawals;
+    }
 
     struct PoolInfo {
         bytes32 poolId;
@@ -48,11 +84,12 @@ contract Kamui is IKamui {
 
     mapping(address approver => bool) internal _isWormholeApprover;
 
-    constructor(IPoseidon2 poseidon2_) {
+    constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_) EIP712("Kamui", "1") {
         poseidon2 = poseidon2_;
         address poseidon2Address = address(poseidon2);
         shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
         wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
+        ragequitVerifier = ragequitVerifier_;
     }
 
     function _getWormholeCommitment(address from, address to, bytes32 assetId, uint256 amount, bool approved) internal view returns (uint256) {
@@ -97,15 +134,104 @@ contract Kamui is IKamui {
         wormholeTrees[currentWormholeTreeId].init(address(poseidon2));
     }
 
+    function _createShieldedTree() internal {
+        currentShieldedTreeId++;
+        shieldedTrees[currentShieldedTreeId].init(address(poseidon2));
+    }
+
     function _isWormholeTreeFull() internal view returns (bool) {
-        return wormholeTrees[currentWormholeTreeId].size == 2 ** MERKLE_TREE_DEPTH;
+        return _isMerkleTreeFull(wormholeTrees[currentWormholeTreeId]);
+    }
+
+    function _isShieldedTreeFull() internal view returns (bool) {
+        return _isMerkleTreeFull(shieldedTrees[currentShieldedTreeId]);
+    }
+
+    function _isMerkleTreeFull(LeanIMTData storage tree) internal view returns (bool) {
+        return tree.size == 2 ** MERKLE_TREE_DEPTH;
     }
 
     function _isWormholeTreeOverflow(uint256 batchSize) internal view returns (bool) {
         return wormholeTrees[currentWormholeTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
     }
 
-    // TODO: function shieldedTransfer
+    function _isShieldedTreeOverflow(uint256 batchSize) internal view returns (bool) {
+        return shieldedTrees[currentShieldedTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
+    }
+
+    function shieldedTransfer(ShieldedTx memory shieldedTx, bytes calldata proof) external {
+        // Use modulo to avoid possible bn254 overflow when hashing EIP712 message
+        bytes32 messageHash = bytes32(uint256(_hashTypedData(shieldedTx)) % SNARK_SCALAR_FIELD);
+        
+        // Validate roots
+        require(isWormholeRoot[shieldedTx.wormholeRoot], "Kamui: wormhole root is not valid");
+        require(isShieldedRoot[shieldedTx.shieldedRoot], "Kamui: shielded root is not valid");
+
+        // Validate nullifiers
+        require(!wormholeNullifierUsed[shieldedTx.wormholeNullifier], "Kamui: wormhole nullifier is already used");
+        for (uint256 i = 0; i < shieldedTx.nullifiers.length; i++) {
+            require(!nullifierUsed[shieldedTx.nullifiers[i]], "Kamui: nullifier is already used");
+        }
+
+        // Get verifier
+        IVerifier verifier = _utxoVerifiers[shieldedTx.nullifiers.length][shieldedTx.commitments.length];
+        require(address(verifier) != address(0), "Kamui: verifier is not registered");
+
+        // Get public inputs
+        bytes32[] memory inputs = _formatPublicInputs(shieldedTx, messageHash);
+
+        // Verify proof
+        require(verifier.verify(proof, inputs), "Kamui: proof is not valid");
+
+        // Mark nullifiers as used
+        wormholeNullifierUsed[shieldedTx.wormholeNullifier] = true;
+        for (uint256 i; i < shieldedTx.nullifiers.length; i++) {
+            nullifierUsed[shieldedTx.nullifiers[i]] = true;
+        }
+
+        // Insert new commitments into shielded tree
+        if (_isShieldedTreeOverflow(shieldedTx.commitments.length)) {
+            _createShieldedTree();
+        }
+        shieldedTrees[currentShieldedTreeId].insertMany(shieldedTx.commitments);
+
+        // If withdrawals are present, mint new shares for each withdrawal
+        for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
+            Withdrawal memory withdrawal = shieldedTx.withdrawals[i];
+            IVaultPool(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
+            // TODO: emit event
+        }
+    }
+
+    function _formatPublicInputs(ShieldedTx memory shieldedTx, bytes32 messageHash) internal view returns (bytes32[] memory inputs) {
+        uint256 offset = 4 + shieldedTx.nullifiers.length;
+        uint256 commitmentLength = shieldedTx.commitments.length + shieldedTx.withdrawals.length;
+        inputs = new bytes32[](offset + commitmentLength);
+        inputs[0] = messageHash;
+        inputs[1] = shieldedTx.shieldedRoot;
+        inputs[2] = shieldedTx.wormholeRoot;
+        inputs[3] = shieldedTx.wormholeNullifier;
+        for (uint256 i; i < shieldedTx.nullifiers.length; i++) {
+            inputs[4 + i] = shieldedTx.nullifiers[i];
+        }
+        for (uint256 i; i < shieldedTx.commitments.length; i++) {
+            inputs[offset + i] = bytes32(shieldedTx.commitments[i]);
+        }
+        for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
+            Withdrawal memory withdrawal = shieldedTx.withdrawals[i];
+            uint256 commitment = _getCommitment(
+                uint256(uint160(withdrawal.to)), 
+                _getAssetId(withdrawal.asset, withdrawal.id), 
+                withdrawal.amount, 
+                TransferType.WITHDRAWAL
+            );
+            inputs[offset + shieldedTx.commitments.length + i] = bytes32(commitment);
+        }
+    }
+
+    function _getCommitment(uint256 recipientHash, bytes32 assetId, uint256 amount, TransferType transferType) internal view returns (uint256) {
+        return poseidon2.hash_4(recipientHash, uint256(assetId), amount, uint256(transferType));
+    }
 
     function _getPoolId(address implementation, address asset, bytes calldata initData) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(implementation, asset, initData));
@@ -161,5 +287,35 @@ contract Kamui is IKamui {
 
     function _requireCallerIsPool() internal view {
         require(_isPool[msg.sender], "Kamui: caller is not a pool");
+    }
+
+    // EIP712 helper functions
+    function _hashTypedData(ShieldedTx memory shieldedTx) internal view returns (bytes32) {
+        bytes32[] memory withdrawalsHash = new bytes32[](shieldedTx.withdrawals.length);
+        for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
+            withdrawalsHash[i] = keccak256(
+                abi.encode(
+                    WITHDRAWAL_TYPEHASH, 
+                    shieldedTx.withdrawals[i].to, 
+                    shieldedTx.withdrawals[i].asset, 
+                    shieldedTx.withdrawals[i].id, 
+                    shieldedTx.withdrawals[i].amount
+                )
+            );
+        }
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    SHIELDED_TX_TYPEHASH,
+                    shieldedTx.chainId,
+                    shieldedTx.wormholeRoot,
+                    shieldedTx.wormholeNullifier,
+                    shieldedTx.shieldedRoot,
+                    keccak256(abi.encodePacked(shieldedTx.nullifiers)),
+                    keccak256(abi.encodePacked(shieldedTx.commitments)),
+                    keccak256(abi.encodePacked(withdrawalsHash))
+                )
+            )
+        );
     }
 }
