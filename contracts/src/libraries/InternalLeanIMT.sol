@@ -99,7 +99,10 @@ library InternalLeanIMT {
     /// @return The root after the leaves have been inserted.
     function _insertMany(LeanIMTData storage self, uint256[] calldata leaves) internal returns (uint256) {
         // Cache tree size to optimize gas
-        uint256 treeSize = self.size;
+        // uint256 treeSize = self.size;
+
+        // Cache poseidon2 to avoid stack too deep error
+        IPoseidon2 poseidon2 = self.poseidon2;
 
         // Check that all the new values are correct to be added.
         for (uint256 i = 0; i < leaves.length; ) {
@@ -111,7 +114,7 @@ library InternalLeanIMT {
                 revert LeafAlreadyExists();
             }
 
-            self.leaves[leaves[i]] = treeSize + 1 + i;
+            self.leaves[leaves[i]] = self.size + 1 + i;
 
             unchecked {
                 ++i;
@@ -129,17 +132,17 @@ library InternalLeanIMT {
         // Calculate the depth of the tree after adding the new values.
         // Unlike the 'insert' function, we need a while here as
         // N insertions can increase the tree's depth more than once.
-        while (2 ** treeDepth < treeSize + leaves.length) {
+        while (2 ** treeDepth < self.size + leaves.length) {
             ++treeDepth;
         }
 
         self.depth = treeDepth;
 
         // First index to change in every level.
-        uint256 currentLevelStartIndex = treeSize;
+        uint256 currentLevelStartIndex = self.size;
 
         // Size of the level used to create the next level.
-        uint256 currentLevelSize = treeSize + leaves.length;
+        uint256 currentLevelSize = self.size + leaves.length;
 
         // The index where changes begin at the next level.
         uint256 nextLevelStartIndex = currentLevelStartIndex >> 1;
@@ -175,7 +178,7 @@ library InternalLeanIMT {
                 // If it has a right child the result will be the hash(leftNode, rightNode) if not,
                 // it will be the leftNode.
                 if (rightNode != 0) {
-                    parentNode = self.poseidon2.hash_2(leftNode, rightNode);
+                    parentNode = poseidon2.hash_2(leftNode, rightNode);
                 } else {
                     parentNode = leftNode;
                 }
@@ -220,7 +223,7 @@ library InternalLeanIMT {
         }
 
         // Update tree size
-        self.size = treeSize + leaves.length;
+        self.size = self.size + leaves.length;
 
         // Update tree root
         self.sideNodes[treeDepth] = currentLevelNewNodes[0];

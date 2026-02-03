@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {IERC6909Metadata} from "openzeppelin-contracts/contracts/interfaces/IERC6909.sol";
+interface IKamui {
+    struct WormholeTransfer {
+        uint256 index;
+        bool approved;
+    }
 
-interface IKamui is IERC6909Metadata {
-    function mint(address to, uint256 id, uint256 amount) external;
-    function burn(address from, uint256 id, uint256 amount) external;
-    function createVaultPool(address asset, address vault) external;
+    function createPool(address implementation, address asset, bytes calldata initData) external;
+    function requestWormholeTransfer(address from, address to, uint256 id, uint256 amount) external returns (uint256 index);
+    function appendWormholeTransfer(WormholeTransfer memory transferData) external;
+    function appendManyWormholeTransfers(WormholeTransfer[] memory transferDatas) external;
 }
