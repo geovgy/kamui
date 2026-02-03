@@ -3,8 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 import {LeanIMT, LeanIMTData} from "./libraries/LeanIMT.sol";
-import {IVaultPool} from "./interfaces/IVaultPool.sol";
-import {VaultPool} from "./VaultPool.sol";
+import {IWormhole} from "./interfaces/IWormhole.sol";
 import {IKamui} from "./interfaces/IKamui.sol";
 import {EIP712} from "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
 import {SNARK_SCALAR_FIELD} from "./utils/Constants.sol";
@@ -95,6 +94,8 @@ contract Kamui is IKamui, EIP712, Ownable {
     mapping(uint256 index => TransferMetadata) internal _transfers;
 
     mapping(address approver => bool) internal _isWormholeApprover;
+
+    event TransferAdded(uint256 index, address indexed token, address from, address to, uint256 id, uint256 amount);
 
     event PoolCreated(address pool, address implementation, address asset, bytes initData);
     event Unshield(address to, address asset, uint256 id, uint256 amount);
@@ -246,7 +247,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         // If withdrawals are present, mint new shares for each withdrawal
         for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
             Withdrawal memory withdrawal = shieldedTx.withdrawals[i];
-            IVaultPool(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
+            IWormhole(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
             emit Unshield(withdrawal.to, withdrawal.asset, withdrawal.id, withdrawal.amount);
         }
     }
@@ -273,7 +274,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         emit WormholeNullifier(ragequitTx.wormholeNullifier);
 
         // return asset amount back to sender
-        IVaultPool(ragequitTx.asset).unshield(ragequitTx.sender, ragequitTx.id, ragequitTx.amount);
+        IWormhole(ragequitTx.asset).unshield(ragequitTx.sender, ragequitTx.id, ragequitTx.amount);
         emit Ragequit(commitment, ragequitTx.sender, ragequitTx.burnAddress, ragequitTx.asset, ragequitTx.id, ragequitTx.amount, ragequitTx.approved);
     }
 
@@ -328,7 +329,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         address pool = Clones.cloneDeterministic(implementation, poolId);
         require(pool == target, "Kamui: deployed pool is not target address");
         // Initialize the clone
-        VaultPool(pool).initialize(asset, initData);
+        IWormhole(pool).initialize(asset, initData);
         // Set the pool info to mapping
         _poolInfos[pool] = PoolInfo({
             poolId: poolId,
@@ -355,6 +356,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         unchecked {
             _totalTransfers++;
         }
+        emit TransferAdded(index, token, from, to, id, amount);
     }
 
     // require functions

@@ -8,14 +8,10 @@ import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol
 import {IKamui} from "./interfaces/IKamui.sol";
 import {Wormhole} from "./Wormhole.sol";
 
-contract VaultPool is IERC4626, ERC20, Wormhole {
+contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
     using SafeERC20 for IERC20;
     using SafeERC20 for IERC4626;
 
-    bool public initialized;
-
-    IKamui public immutable kamui;
-    
     IERC20 internal _asset;
     IERC4626 public vault;
 
@@ -23,35 +19,27 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
 
     uint256 private _totalShares; // also used as actual supply
     uint256 private _totalAssets;
-
-    modifier onlyKamui() {
-        require(msg.sender == address(kamui), "VaultPool: caller is not kamui");
-        _;
-    }
     
-    constructor(address kamui_) ERC20("", "") {
-        kamui = IKamui(kamui_);
-    }
+    constructor(address kamui_) ERC20("", "") Wormhole(kamui_) {}
 
-    function initialize(address asset_, bytes calldata data_) external onlyKamui {
-        require(!initialized, "VaultPool: already initialized");
+    function _initialize(address asset_, bytes calldata data_) internal override returns (bool) {
+        require(!initialized, "ERC4626Wormhole: already initialized");
         address vaultAddress = address(bytes20(data_));
-        require(vaultAddress != address(0), "VaultPool: vault address is zero address");
+        require(vaultAddress != address(0), "ERC4626Wormhole: vault address is zero address");
         IERC4626 _vault = IERC4626(vaultAddress);
-        require(_vault.asset() == asset_, "VaultPool: vault asset mismatch");
+        require(_vault.asset() == asset_, "ERC4626Wormhole: vault asset mismatch");
         vault = _vault;
         _asset = IERC20(asset_);
-        initialized = true;
+        return true;
     }
 
-    function unshield(address to, uint256 /* id */, uint256 amount) external onlyKamui {
-        // TODO: emit event
+    function _unshield(address to, uint256 /* id */, uint256 amount) internal override {
         _mint(to, amount);
     }
 
     function _update(address from, address to, uint256 value) internal virtual override {
         super._update(from, to, value);
-        _requestWormholeTransfer(kamui, from, to, 0, value); // id is always 0 for ERC20 tokens
+        _requestWormholeTransfer(from, to, 0, value); // id is always 0 for ERC20 tokens
     }
 
     function asset() external view returns (address) {
@@ -70,15 +58,6 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         return vault.convertToAssets(shares);
     }
 
-    // Wrap existing shares to the vault pool
-    function wrap(uint256 shares, address receiver) external {
-        vault.safeTransferFrom(msg.sender, address(this), shares);
-        uint256 assets = vault.previewRedeem(shares);
-        _totalShares += shares;
-        _totalAssets += assets;
-        _mint(receiver, shares);
-    }
-
     function maxDeposit(address receiver) external view returns (uint256) {
         return vault.maxDeposit(receiver);
     }
@@ -94,6 +73,7 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         _totalAssets += assets;
         // Mint equivalent of shares to the receiver
         _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     function maxMint(address receiver) external view returns (uint256) {
@@ -110,6 +90,7 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         _totalShares += shares;
         _totalAssets += assets;
         _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     function maxWithdraw(address owner) external view returns (uint256) {
@@ -120,15 +101,13 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         return vault.previewWithdraw(assets);
     }
 
-    // TODO: Add owner parameter?
-    // For feature parity with ERC4626
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares) {
-        // TODO: other checks?
         shares = vault.withdraw(assets, address(this), address(this));
         _totalShares -= shares;
         _totalAssets -= assets;
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
     function maxRedeem(address owner) external view returns (uint256) {
@@ -139,14 +118,12 @@ contract VaultPool is IERC4626, ERC20, Wormhole {
         return vault.previewRedeem(shares);
     }
 
-    // TODO: Add owner parameter?
-    // For feature parity with ERC4626
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256 assets) {
-        // TODO: other checks?
         assets = vault.redeem(shares, address(this), address(this));
         _totalShares -= shares;
         _totalAssets -= assets;
         _burn(owner, shares);
         _asset.safeTransfer(receiver, assets);
+        emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 }
