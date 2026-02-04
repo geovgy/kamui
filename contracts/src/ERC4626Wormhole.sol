@@ -22,14 +22,17 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
     
     constructor(IKamui kamui_) ERC20("", "") Wormhole(kamui_) {}
 
-    function _initialize(address asset_, bytes calldata data_) internal override returns (bool) {
+    function _initialize(bytes calldata data_) internal override returns (bool) {
         require(!initialized, "ERC4626Wormhole: already initialized");
-        address vaultAddress = address(bytes20(data_));
+        // extract asset and vault address from data_
+        address assetAddress = address(bytes20(data_[:20]));
+        address vaultAddress = address(bytes20(data_[20:]));
+        require(assetAddress != address(0), "ERC4626Wormhole: asset address is zero address");
         require(vaultAddress != address(0), "ERC4626Wormhole: vault address is zero address");
         IERC4626 _vault = IERC4626(vaultAddress);
-        require(_vault.asset() == asset_, "ERC4626Wormhole: vault asset mismatch");
+        require(_vault.asset() == assetAddress, "ERC4626Wormhole: vault asset mismatch");
         vault = _vault;
-        _asset = IERC20(asset_);
+        _asset = IERC20(assetAddress);
         return true;
     }
 
@@ -50,7 +53,7 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
         return _totalAssets;
     }
 
-    function actualSupply() external view returns (uint256) {
+    function actualSupply() public view override returns (uint256) {
         return _totalShares;
     }
 
