@@ -5,7 +5,8 @@
   "private": true,
   "workspaces": [
     "circuits",
-    "contracts"
+    "contracts",
+    "subgraph"
   ],
   "devDependencies": {
     "@types/bun": "latest"

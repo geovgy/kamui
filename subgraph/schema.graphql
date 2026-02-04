@@ -1,0 +1,117 @@
+type EIP712DomainChanged @entity(immutable: true) {
+  id: Bytes!
+
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OwnershipTransferred @entity(immutable: true) {
+  id: Bytes!
+  previousOwner: Bytes! # address
+  newOwner: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PoolCreated @entity(immutable: true) {
+  id: Bytes!
+  pool: Bytes! # address
+  implementation: Bytes! # address
+  asset: Bytes! # address
+  initData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type PoolImplementationSet @entity(immutable: true) {
+  id: Bytes!
+  implementation: Bytes! # address
+  isApproved: Boolean! # bool
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Ragequit @entity(immutable: true) {
+  id: Bytes!
+  entryId: BigInt! # uint256
+  quitter: Bytes! # address
+  returnedTo: Bytes! # address
+  asset: Bytes! # address
+  internal_id: BigInt! # uint256
+  amount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ShieldedTransfer @entity(immutable: true) {
+  id: Bytes!
+  treeId: BigInt! # uint256
+  startIndex: BigInt! # uint256
+  commitments: [BigInt!]! # uint256[]
+  nullifiers: [Bytes!]! # bytes32[]
+  withdrawals: [Bytes!]! # tuple[]
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type VerifierAdded @entity(immutable: true) {
+  id: Bytes!
+  verifier: Bytes! # address
+  inputs: BigInt! # uint256
+  outputs: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WormholeApproverSet @entity(immutable: true) {
+  id: Bytes!
+  approver: Bytes! # address
+  isApprover: Boolean! # bool
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WormholeCommitment @entity(immutable: true) {
+  id: Bytes!
+  entryId: BigInt! # uint256
+  commitment: BigInt! # uint256
+  treeId: BigInt! # uint256
+  leafIndex: BigInt! # uint256
+  assetId: Bytes! # bytes32
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  approved: Boolean! # bool
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WormholeEntry @entity(immutable: true) {
+  id: Bytes!
+  entryId: BigInt! # uint256
+  token: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  internal_id: BigInt! # uint256
+  amount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WormholeNullifier @entity(immutable: true) {
+  id: Bytes!
+  nullifier: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
