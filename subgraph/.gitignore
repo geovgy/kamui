@@ -2,6 +2,9 @@
 build/
 generated/
 
+# Graph CLI generated local data
+data/
+
 # Dependency directories
 node_modules/
 jspm_packages/
