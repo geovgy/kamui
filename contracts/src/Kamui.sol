@@ -99,8 +99,7 @@ contract Kamui is IKamui, EIP712, Ownable {
     event WormholeCommitment(uint256 indexed entryId, uint256 indexed commitment, uint256 treeId, uint256 leafIndex, bytes32 assetId, address from, address to, uint256 amount, bool approved);
     event WormholeNullifier(bytes32 indexed nullifier);
 
-    event ShieldCommitment(uint256 treeId, uint256 leafIndex, uint256 indexed commitment);
-    event ShieldNullifier(bytes32 indexed nullifier);
+    event ShieldedTransfer(uint256 indexed treeId, uint256 startIndex, uint256[] commitments, bytes32[] nullifiers, Withdrawal[] withdrawals);
 
     event Ragequit(uint256 indexed entryId, address indexed quitter, address indexed returnedTo, address asset, uint256 id, uint256 amount);
 
@@ -113,8 +112,10 @@ contract Kamui is IKamui, EIP712, Ownable {
     constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_, address governor_) EIP712("Kamui", "1") Ownable(governor_) {
         poseidon2 = poseidon2_;
         address poseidon2Address = address(poseidon2);
-        _shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
-        _wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
+        uint256 shieldedRoot = _shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
+        uint256 wormholeRoot = _wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
+        isShieldedRoot[bytes32(shieldedRoot)] = true;
+        isWormholeRoot[bytes32(wormholeRoot)] = true;
         ragequitVerifier = ragequitVerifier_;
     }
 
@@ -286,20 +287,23 @@ contract Kamui is IKamui, EIP712, Ownable {
         emit WormholeNullifier(shieldedTx.wormholeNullifier);
         for (uint256 i; i < shieldedTx.nullifiers.length; i++) {
             nullifierUsed[shieldedTx.nullifiers[i]] = true;
-            emit ShieldNullifier(shieldedTx.nullifiers[i]);
         }
 
         // Insert new commitments into shielded tree
         if (_isShieldedTreeOverflow(shieldedTx.commitments.length)) {
             _createShieldedTree();
         }
-        _shieldedTrees[currentShieldedTreeId].insertMany(shieldedTx.commitments);
+        uint256 startIndex = _shieldedTrees[currentShieldedTreeId].size;
+        uint256 root = _shieldedTrees[currentShieldedTreeId].insertMany(shieldedTx.commitments);
+        isShieldedRoot[bytes32(root)] = true;
 
         // If withdrawals are present, mint new shares for each withdrawal
         for (uint256 i; i < shieldedTx.withdrawals.length; i++) {
             Withdrawal memory withdrawal = shieldedTx.withdrawals[i];
             IWormhole(withdrawal.asset).unshield(withdrawal.to, withdrawal.id, withdrawal.amount);
         }
+
+        emit ShieldedTransfer(currentShieldedTreeId, startIndex, shieldedTx.commitments, shieldedTx.nullifiers, shieldedTx.withdrawals);
     }
 
     function ragequit(RagequitTx calldata ragequitTx, bytes calldata proof) external {

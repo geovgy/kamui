@@ -13,6 +13,7 @@ import {MockVerifier} from "../mock/MockVerifier.sol";
 import {IVerifier} from "../../src/interfaces/IVerifier.sol";
 import {ERC4626Wormhole} from "../../src/ERC4626Wormhole.sol";
 import {IWormhole} from "../../src/interfaces/IWormhole.sol";
+import {SNARK_SCALAR_FIELD} from "../../src/utils/Constants.sol";
 
 contract KamuiTest is Test {
     MockERC20 underlying;
@@ -131,11 +132,17 @@ contract KamuiTest is Test {
         vm.prank(screener);
         kamui.appendWormholeLeaf(1, true);
 
-        assertEq(kamui.totalWormholeCommitments(), 1, "Incorrect total wormhole commitments");
-
         vm.expectRevert("Kamui: entry is already committed in wormhole tree");
         vm.prank(screener);
         kamui.appendWormholeLeaf(1, false);
+
+        bytes32 expectedRoot = bytes32(expectedCommitment);
+        (bytes32 wormholeRoot, uint256 size, uint256 depth) = kamui.wormholeTree(0);
+        assertEq(wormholeRoot, expectedRoot, "Wormhole root should be the same");
+        assertEq(size, 1, "Wormhole tree size should be 1");
+        assertEq(depth, 0, "Wormhole tree depth should be 0");
+
+        assertEq(kamui.totalWormholeCommitments(), 1, "Incorrect total wormhole commitments");
     }
 
     function test_appendManyWormholeLeaves() public {
@@ -169,6 +176,13 @@ contract KamuiTest is Test {
         emit Kamui.WormholeCommitment(nodes[1].entryId, expectedCommitments[1], 0, 1, assetId, from, to, 100e18, nodes[1].approved);
         vm.prank(screener);
         kamui.appendManyWormholeLeaves(nodes);
+
+        bytes32 expectedRoot = bytes32(poseidon2.hash_2(expectedCommitments[0], expectedCommitments[1]));
+
+        (bytes32 wormholeRoot, uint256 size, uint256 depth) = kamui.wormholeTree(0);
+        assertEq(wormholeRoot, expectedRoot, "Wormhole root should be the same");
+        assertEq(size, 2, "Wormhole tree size should be 2");
+        assertEq(depth, 1, "Wormhole tree depth should be 1");
 
         assertEq(kamui.totalWormholeCommitments(), 2, "Incorrect total wormhole commitments");
     }
@@ -274,7 +288,7 @@ contract KamuiTest is Test {
         assertEq(kamui.wormholeNullifierUsed(ragequitTx.wormholeNullifier), false, "Nullifier should not be marked as used yet");
 
         // Should fail if root is not valid
-        ragequitTx.wormholeRoot = bytes32(0);
+        ragequitTx.wormholeRoot = keccak256(abi.encodePacked("invalid wormhole root"));
         vm.expectRevert("Kamui: wormhole root is not valid");
         kamui.ragequit(ragequitTx, proof);
 
@@ -305,6 +319,97 @@ contract KamuiTest is Test {
         assertEq(wormholeVault.balanceOf(to), 100e18, "to address should still have the original transfer amount (as burn address)");
         assertEq(wormholeVault.totalSupply(), 200e18, "Total supply should increase by the transfer amount after ragequit");
         assertEq(wormholeVault.actualSupply(), 100e18, "Actual supply should no change after ragequit");
+    }
+
+    function test_shieldedTransfer() public {
+        uint256 entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 0, "Should start with 0 total wormhole entries");
+
+        address from = makeAddr("from");
+        address to = makeAddr("to");
+        
+        _dealWormholeTokens(from, 100e18);
+
+        vm.prank(from);
+        wormholeVault.transfer(to, 100e18);
+
+        entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 2, "Should increment total wormhole entries by 2 after transfer");
+        
+        // append wormhole leaf
+        vm.prank(screener);
+        kamui.appendWormholeLeaf(1, true);
+
+        // shield transfer
+        (bytes32 wormholeRoot,,) = kamui.wormholeTree(0);
+        (bytes32 shieldedRoot, uint256 size,) = kamui.shieldedTree(0);
+        assertTrue(shieldedRoot == bytes32(0) && size == 0, "Shielded root and size should be 0 before any commitments inserted");
+        
+        bytes32[] memory nullifiers = new bytes32[](2);
+        nullifiers[0] = keccak256(abi.encodePacked("mock nullifier 1"));
+        nullifiers[1] = keccak256(abi.encodePacked("mock nullifier 2"));
+        uint256[] memory commitments = new uint256[](2);
+        commitments[0] = uint256(keccak256(abi.encodePacked("mock commitment 1"))) % SNARK_SCALAR_FIELD;
+        commitments[1] = uint256(keccak256(abi.encodePacked("mock commitment 2"))) % SNARK_SCALAR_FIELD;
+        Kamui.ShieldedTx memory shieldedTx = Kamui.ShieldedTx({
+            chainId: 1,
+            wormholeRoot: wormholeRoot,
+            wormholeNullifier: keccak256(abi.encodePacked("mock wormhole nullifier")),
+            shieldedRoot: shieldedRoot,
+            nullifiers: nullifiers,
+            commitments: commitments,
+            withdrawals: new Kamui.Withdrawal[](0)
+        });
+        bytes memory proof = abi.encodePacked("mock zk proof");
+
+        // Should fail if wormhole root is not valid
+        shieldedTx.wormholeRoot = keccak256(abi.encodePacked("invalid wormhole root"));
+        vm.expectRevert("Kamui: wormhole root is not valid");
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        // Set wormhole root back
+        shieldedTx.wormholeRoot = wormholeRoot;
+
+        // Should fail if shielded root is not valid
+        shieldedTx.shieldedRoot = keccak256(abi.encodePacked("invalid shielded root"));
+        vm.expectRevert("Kamui: shielded root is not valid");
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        // Set shielded root back
+        shieldedTx.shieldedRoot = shieldedRoot;
+
+        // Should fail if proof is not valid
+        verifier.setReturnValue(false);
+        vm.expectRevert("Kamui: proof is not valid");
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        // Set verifier back to true
+        verifier.setReturnValue(true);
+
+        vm.expectEmit(address(kamui));
+        emit Kamui.ShieldedTransfer(0, 0, commitments, nullifiers, shieldedTx.withdrawals);
+        // Anyone can shield the transfer as long as the proof is valid
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        // Should fail if nullifier is already used
+        vm.expectRevert("Kamui: wormhole nullifier is already used");
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        bytes32 expectedRoot = bytes32(poseidon2.hash_2(commitments[0], commitments[1]));
+        (bytes32 newShieldedRoot, uint256 newSize, uint256 newDepth) = kamui.shieldedTree(0);
+        assertEq(newShieldedRoot, expectedRoot, "Shielded root is incorrect after shield transfer");
+        assertEq(newSize, 2, "Shielded tree size should be 2");
+        assertEq(newDepth, 1, "Shielded tree depth should be 1");
+        assertTrue(kamui.isShieldedRoot(expectedRoot), "Shielded root should be marked as valid");
+        
+        (bytes32 newWormholeRoot,,) = kamui.wormholeTree(0);
+        assertEq(newWormholeRoot, wormholeRoot, "Wormhole root should not change after shield transfer");
+
+        assertEq(kamui.wormholeNullifierUsed(shieldedTx.wormholeNullifier), true, "Wormhole nullifier should be marked as used");
+        assertEq(kamui.nullifierUsed(nullifiers[0]), true, "Nullifier 1 should be marked as used");
+        assertEq(kamui.nullifierUsed(nullifiers[1]), true, "Nullifier 2 should be marked as used");
+        assertEq(wormholeVault.totalSupply(), 100e18, "Total supply should not change after shield transfer");
+        assertEq(wormholeVault.actualSupply(), 100e18, "Actual supply should not change after shield transfer");
     }
 
     function test_createPool() public {

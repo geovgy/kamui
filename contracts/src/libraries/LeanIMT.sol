@@ -6,8 +6,8 @@ import {InternalLeanIMT, LeanIMTData} from "./InternalLeanIMT.sol";
 library LeanIMT {
     using InternalLeanIMT for *;
 
-    function init(LeanIMTData storage self, address poseidon2) internal {
-        InternalLeanIMT._init(self, poseidon2);
+    function init(LeanIMTData storage self, address poseidon2) internal returns (uint256) {
+        return InternalLeanIMT._init(self, poseidon2);
     }
 
     function insert(LeanIMTData storage self, uint256 leaf) public returns (uint256) {

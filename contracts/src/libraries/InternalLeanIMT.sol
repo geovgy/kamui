@@ -36,8 +36,9 @@ library InternalLeanIMT {
     /// @dev Initializes the LeanIMTData struct with the given poseidon2 implementation.
     /// @param self: A storage reference to the 'LeanIMTData' struct.
     /// @param poseidon2: The poseidon2 implementation to use.
-    function _init(LeanIMTData storage self, address poseidon2) internal {
+    function _init(LeanIMTData storage self, address poseidon2) internal returns (uint256) {
         self.poseidon2 = IPoseidon2(poseidon2);
+        return _root(self);
     }
 
     /// @dev Inserts a new leaf into the incremental merkle tree.
