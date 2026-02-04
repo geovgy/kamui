@@ -19,17 +19,20 @@ abstract contract Wormhole is IWormhole {
     }
 
     // Override this function to initialize the wormhole
-    function _initialize(address asset_, bytes calldata data_) internal virtual returns (bool) {}
+    function _initialize(bytes calldata data_) internal virtual returns (bool) {}
 
     // Override this function to unshield the asset
     function _unshield(address to, uint256 id, uint256 amount) internal virtual {}
 
-    function initialize(address asset_, bytes calldata data_) external onlyKamui {
+    // Override this function to return the actual supply of the asset
+    function actualSupply() public virtual view returns (uint256) {}
+
+    function initialize(bytes calldata data_) external onlyKamui {
         require(!initialized, "Wormhole: already initialized");
-        bool success = _initialize(asset_, data_);
+        bool success = _initialize(data_);
         require(success, "Wormhole: initialization failed");
         initialized = true;
-        emit Initialize(asset_, data_);
+        emit Initialize(data_);
     }
 
     function unshield(address to, uint256 id, uint256 amount) external onlyKamui {
