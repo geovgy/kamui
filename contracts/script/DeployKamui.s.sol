@@ -49,7 +49,7 @@ contract DeployKamuiScript is Script {
 
         // create and set wormhole pool implementation
         wormholeVaultImplementation = new ERC4626Wormhole(kamui);
-        kamui.setPoolImplementation(address(wormholeVaultImplementation), true);
+        kamui.setWormholeAssetImplementation(address(wormholeVaultImplementation), true);
 
         // Transfer ownership to governor
         kamui.transferOwnership(GOVERNOR);

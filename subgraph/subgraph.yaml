@@ -18,12 +18,12 @@ dataSources:
       entities:
         - EIP712DomainChanged
         - OwnershipTransferred
-        - PoolCreated
-        - PoolImplementationSet
+        - WormholeAsset
+        - WormholeAssetImplementation
         - Ragequit
         - ShieldedTransfer
         - VerifierAdded
-        - WormholeApproverSet
+        - WormholeApprover
         - WormholeCommitment
         - WormholeEntry
         - WormholeNullifier
@@ -33,16 +33,16 @@ dataSources:
         - ShieldedTree
       abis:
         - name: Kamui
-          file: ./abis/Kamui.json
+          file: ../contracts/out/Kamui.sol/Kamui.json
       eventHandlers:
         - event: EIP712DomainChanged()
           handler: handleEIP712DomainChanged
         - event: OwnershipTransferred(indexed address,indexed address)
           handler: handleOwnershipTransferred
-        - event: PoolCreated(indexed address,indexed address,indexed address,bytes)
-          handler: handlePoolCreated
-        - event: PoolImplementationSet(indexed address,bool)
-          handler: handlePoolImplementationSet
+        - event: WormholeAssetCreated(indexed address,indexed address,bytes)
+          handler: handleWormholeAssetCreated
+        - event: WormholeAssetImplementationSet(indexed address,bool)
+          handler: handleWormholeAssetImplementationSet
         - event: Ragequit(indexed uint256,indexed address,indexed address,address,uint256,uint256)
           handler: handleRagequit
         - event: ShieldedTransfer(indexed uint256,uint256,uint256[],bytes32[],(address,address,uint256,uint256)[])

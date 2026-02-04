@@ -61,7 +61,7 @@ contract KamuiTest is Test {
 
         // add pool implementation
         vm.prank(owner);
-        kamui.setWormholeImplementation(address(implementation), true);
+        kamui.setWormholeAssetImplementation(address(implementation), true);
 
         // add approver
         vm.prank(owner);
@@ -485,7 +485,7 @@ contract KamuiTest is Test {
         // create new implementation since we already created one in setUp
         ERC4626Wormhole newImplementation = new ERC4626Wormhole(kamui);
         vm.prank(owner);
-        kamui.setWormholeImplementation(address(newImplementation), true);
+        kamui.setWormholeAssetImplementation(address(newImplementation), true);
 
         // create wormhole asset
         address asset = kamui.createWormholeAsset(address(newImplementation), abi.encodePacked(address(underlying), address(vault)));

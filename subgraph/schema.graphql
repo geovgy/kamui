@@ -15,24 +15,24 @@ type OwnershipTransferred @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type PoolCreated @entity(immutable: true) {
-  id: Bytes!
-  pool: Bytes! # address
-  implementation: Bytes! # address
+type WormholeAsset @entity(immutable: false) {
+  id: Bytes! # asset address
   asset: Bytes! # address
+  implementation: WormholeAssetImplementation!
   initData: Bytes! # bytes
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  unshields: [Withdrawal!]! @derivedFrom(field: "asset")
+  totalUnshielded: BigInt! # uint256
+  createdAt: BigInt!
+  startBlock: BigInt!
 }
 
-type PoolImplementationSet @entity(immutable: true) {
-  id: Bytes!
-  implementation: Bytes! # address
+type WormholeAssetImplementation @entity(immutable: false) {
+  id: Bytes! # implementation address
+  address: Bytes! # address
   isApproved: Boolean! # bool
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  wormholeAssets: [WormholeAsset!]! @derivedFrom(field: "implementation")
+  createdAt: BigInt! # uint256
+  updatedAt: BigInt! # uint256
 }
 
 type Ragequit @entity(immutable: true) {
@@ -80,7 +80,7 @@ type ShieldedTransfer @entity(immutable: true) {
 type Withdrawal @entity(immutable: true) {
   id: ID! # shieldedTransfer id:withdrawalIndex
   to: Bytes! # address
-  asset: Bytes! # address
+  asset: WormholeAsset! # WormholeAsset
   asset_id: BigInt! # uint256
   amount: BigInt! # uint256
   shieldedTransfer: ShieldedTransfer! @derivedFrom(field: "withdrawals") # ShieldedTransfer
@@ -102,13 +102,12 @@ type VerifierAdded @entity(immutable: true) {
   transactionHash: Bytes!
 }
 
-type WormholeApproverSet @entity(immutable: true) {
-  id: Bytes!
-  approver: Bytes! # address
+type WormholeApprover @entity(immutable: false) {
+  id: Bytes! # address
+  address: Bytes! # address
   isApprover: Boolean! # bool
-  blockNumber: BigInt!
-  blockTimestamp: BigInt!
-  transactionHash: Bytes!
+  createdAt: BigInt! # uint256
+  updatedAt: BigInt! # uint256
 }
 
 type WormholeCommitment @entity(immutable: true) {
@@ -122,6 +121,7 @@ type WormholeCommitment @entity(immutable: true) {
   to: Bytes! # address
   amount: BigInt! # uint256
   approved: Boolean! # bool
+  submittedBy: Bytes! # address
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!

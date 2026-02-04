@@ -93,7 +93,7 @@ contract Kamui is IKamui, EIP712, Ownable {
     event WormholeAssetCreated(address indexed asset, address indexed implementation, bytes initData);
 
     event VerifierAdded(address verifier, uint256 inputs, uint256 outputs);
-    event PoolImplementationSet(address indexed implementation, bool isApproved);
+    event WormholeAssetImplementationSet(address indexed implementation, bool isApproved);
     event WormholeApproverSet(address indexed approver, bool isApprover);
 
     constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_, address governor_) EIP712("Kamui", "1") Ownable(governor_) {
@@ -131,9 +131,9 @@ contract Kamui is IKamui, EIP712, Ownable {
         emit VerifierAdded(address(verifier), inputs, outputs);
     }
 
-    function setWormholeImplementation(address implementation, bool isApproved) external onlyOwner {
+    function setWormholeAssetImplementation(address implementation, bool isApproved) external onlyOwner {
         _allowedImplementations[implementation] = isApproved;
-        emit PoolImplementationSet(implementation, isApproved);
+        emit WormholeAssetImplementationSet(implementation, isApproved);
     }
 
     function setWormholeApprover(address approver, bool isApprover) external onlyOwner {

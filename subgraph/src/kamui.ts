@@ -1,8 +1,8 @@
 import {
   EIP712DomainChanged as EIP712DomainChangedEvent,
   OwnershipTransferred as OwnershipTransferredEvent,
-  PoolCreated as PoolCreatedEvent,
-  PoolImplementationSet as PoolImplementationSetEvent,
+  WormholeAssetCreated as WormholeAssetCreatedEvent,
+  WormholeAssetImplementationSet as WormholeAssetImplementationSetEvent,
   Ragequit as RagequitEvent,
   ShieldedTransfer as ShieldedTransferEvent,
   VerifierAdded as VerifierAddedEvent,
@@ -14,15 +14,15 @@ import {
 import {
   EIP712DomainChanged,
   OwnershipTransferred,
-  PoolCreated,
-  PoolImplementationSet,
+  WormholeAsset,
+  WormholeAssetImplementation,
   Ragequit,
   ShieldedTransfer,
   ShieldedTree,
   ShieldNullifier,
   VerifierAdded,
   Withdrawal,
-  WormholeApproverSet,
+  WormholeApprover,
   WormholeCommitment,
   WormholeEntry,
   WormholeNullifier,
@@ -60,35 +60,30 @@ export function handleOwnershipTransferred(
   entity.save()
 }
 
-export function handlePoolCreated(event: PoolCreatedEvent): void {
-  let entity = new PoolCreated(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  )
-  entity.pool = event.params.pool
-  entity.implementation = event.params.implementation
+export function handleWormholeAssetCreated(event: WormholeAssetCreatedEvent): void {
+  let entity = new WormholeAsset(event.params.asset)
   entity.asset = event.params.asset
+  entity.implementation = event.params.implementation
   entity.initData = event.params.initData
 
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
+  entity.createdAt = event.block.timestamp
+  entity.startBlock = event.block.number
+  entity.totalUnshielded = BigInt.zero()
 
   entity.save()
 }
 
-export function handlePoolImplementationSet(
-  event: PoolImplementationSetEvent
+export function handleWormholeAssetImplementationSet(
+  event: WormholeAssetImplementationSetEvent
 ): void {
-  let entity = new PoolImplementationSet(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  )
-  entity.implementation = event.params.implementation
+  let entity = WormholeAssetImplementation.load(event.params.implementation)
+  if (entity == null) {
+    entity = new WormholeAssetImplementation(event.params.implementation)
+    entity.address = event.params.implementation
+    entity.createdAt = event.block.timestamp
+  }
   entity.isApproved = event.params.isApproved
-
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
-
+  entity.updatedAt = event.block.timestamp
   entity.save()
 }
 
@@ -125,6 +120,7 @@ export function handleShieldedTransfer(event: ShieldedTransferEvent): void {
   entity.nullifiers = event.params.nullifiers
   let baseId = entity.id.toHexString()
   let withdrawalIds = new Array<string>()
+  let totalUnshielded = BigInt.zero()
   for (let i = 0; i < event.params.withdrawals.length; i++) {
     let withdrawal = new Withdrawal(baseId + ":" + i.toString())
     withdrawal.to = event.params.withdrawals[i].to
@@ -133,14 +129,21 @@ export function handleShieldedTransfer(event: ShieldedTransferEvent): void {
     withdrawal.amount = event.params.withdrawals[i].amount
     withdrawal.save()
     withdrawalIds.push(withdrawal.id)
+    totalUnshielded = totalUnshielded.plus(event.params.withdrawals[i].amount)
   }
   entity.withdrawals = withdrawalIds
-
+  
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
   entity.transactionHash = event.transaction.hash
-
+  
   entity.save()
+
+  if (totalUnshielded.gt(BigInt.fromI32(0))) {
+    let asset = WormholeAsset.load(event.params.withdrawals[0].asset)!
+    asset.totalUnshielded = totalUnshielded
+    asset.save()
+  }
 
   // append to shielded tree
   let tree = _loadOrCreateShieldedTree(event.params.treeId, event.block.timestamp)
@@ -183,16 +186,14 @@ export function handleVerifierAdded(event: VerifierAddedEvent): void {
 export function handleWormholeApproverSet(
   event: WormholeApproverSetEvent
 ): void {
-  let entity = new WormholeApproverSet(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  )
-  entity.approver = event.params.approver
+  let entity = WormholeApprover.load(event.params.approver)
+  if (entity == null) {
+    entity = new WormholeApprover(event.params.approver)
+    entity.address = event.params.approver
+    entity.createdAt = event.block.timestamp
+  }
   entity.isApprover = event.params.isApprover
-
-  entity.blockNumber = event.block.number
-  entity.blockTimestamp = event.block.timestamp
-  entity.transactionHash = event.transaction.hash
-
+  entity.updatedAt = event.block.timestamp
   entity.save()
 }
 
@@ -208,6 +209,7 @@ export function handleWormholeCommitment(event: WormholeCommitmentEvent): void {
   entity.to = event.params.to
   entity.amount = event.params.amount
   entity.approved = event.params.approved
+  entity.submittedBy = event.transaction.from
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
