@@ -27,6 +27,10 @@ dataSources:
         - WormholeCommitment
         - WormholeEntry
         - WormholeNullifier
+        - Withdrawal
+        - ShieldNullifier
+        - WormholeTree
+        - ShieldedTree
       abis:
         - name: Kamui
           file: ./abis/Kamui.json

@@ -41,11 +41,28 @@ type Ragequit @entity(immutable: true) {
   quitter: Bytes! # address
   returnedTo: Bytes! # address
   asset: Bytes! # address
-  internal_id: BigInt! # uint256
+  asset_id: BigInt! # uint256
   amount: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
+}
+
+type ShieldedTree @entity(immutable: false) {
+  id: Bytes! # treeId
+  leaves: [BigInt!]! # uint256[]
+  size: BigInt! # uint256
+  createdAt: BigInt! # uint256
+  updatedAt: BigInt! # uint256
+}
+
+type WormholeTree @entity(immutable: false) {
+  id: Bytes! # treeId
+  leaves: [BigInt!]! # uint256[]
+  commitments: [WormholeCommitment!]! # WormholeCommitment[]
+  size: BigInt! # uint256
+  createdAt: BigInt! # uint256
+  updatedAt: BigInt! # uint256
 }
 
 type ShieldedTransfer @entity(immutable: true) {
@@ -53,11 +70,26 @@ type ShieldedTransfer @entity(immutable: true) {
   treeId: BigInt! # uint256
   startIndex: BigInt! # uint256
   commitments: [BigInt!]! # uint256[]
-  nullifiers: [Bytes!]! # bytes32[]
-  withdrawals: [Bytes!]! # tuple[]
+  nullifiers: [ShieldNullifier!]! # ShieldNullifier[]
+  withdrawals: [Withdrawal!]! # Withdrawal[]
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
+}
+
+type Withdrawal @entity(immutable: true) {
+  id: ID! # shieldedTransfer id:withdrawalIndex
+  to: Bytes! # address
+  asset: Bytes! # address
+  asset_id: BigInt! # uint256
+  amount: BigInt! # uint256
+  shieldedTransfer: ShieldedTransfer! @derivedFrom(field: "withdrawals") # ShieldedTransfer
+}
+
+type ShieldNullifier @entity(immutable: true) {
+  id: Bytes! # nullifier
+  nullifier: Bytes! # bytes32
+  shieldedTransfer: ShieldedTransfer! @derivedFrom(field: "nullifiers") # ShieldedTransfer
 }
 
 type VerifierAdded @entity(immutable: true) {
@@ -80,8 +112,8 @@ type WormholeApproverSet @entity(immutable: true) {
 }
 
 type WormholeCommitment @entity(immutable: true) {
-  id: Bytes!
-  entryId: BigInt! # uint256
+  id: ID! # treeId:leafIndex
+  entry: WormholeEntry! # WormholeEntry
   commitment: BigInt! # uint256
   treeId: BigInt! # uint256
   leafIndex: BigInt! # uint256
@@ -96,7 +128,7 @@ type WormholeCommitment @entity(immutable: true) {
 }
 
 type WormholeEntry @entity(immutable: true) {
-  id: Bytes!
+  id: Bytes! # entryId
   entryId: BigInt! # uint256
   token: Bytes! # address
   from: Bytes! # address
@@ -109,7 +141,7 @@ type WormholeEntry @entity(immutable: true) {
 }
 
 type WormholeNullifier @entity(immutable: true) {
-  id: Bytes!
+  id: Bytes! # nullifier
   nullifier: Bytes! # bytes32
   blockNumber: BigInt!
   blockTimestamp: BigInt!
