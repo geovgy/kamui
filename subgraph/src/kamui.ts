@@ -244,10 +244,10 @@ export function handleWormholeEntry(event: WormholeEntryEvent): void {
     Bytes.fromI32(event.params.entryId.toI32())
   )
   entity.entryId = event.params.entryId
-  entity.token = event.params.token
   entity.from = event.params.from
   entity.to = event.params.to
-  entity.internal_id = event.params.id
+  entity.token = event.params.token
+  entity.tokenId = event.params.id
   entity.amount = event.params.amount
 
   entity.blockNumber = event.block.number

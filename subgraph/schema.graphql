@@ -133,8 +133,9 @@ type WormholeEntry @entity(immutable: true) {
   token: Bytes! # address
   from: Bytes! # address
   to: Bytes! # address
-  internal_id: BigInt! # uint256
+  tokenId: BigInt! # uint256
   amount: BigInt! # uint256
+  commitment: WormholeCommitment @derivedFrom(field: "entry") # if undefined, the entry is not appended to the wormhole tree yet
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!

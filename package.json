@@ -6,6 +6,7 @@
   "workspaces": [
     "circuits",
     "contracts",
+    "services/*",
     "subgraph"
   ],
   "devDependencies": {
