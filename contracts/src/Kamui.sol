@@ -273,7 +273,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         }
 
         // Get verifier
-        IVerifier verifier = _utxoVerifiers[shieldedTx.nullifiers.length][shieldedTx.commitments.length];
+        IVerifier verifier = _utxoVerifiers[shieldedTx.nullifiers.length][shieldedTx.commitments.length + shieldedTx.withdrawals.length];
         require(address(verifier) != address(0), "Kamui: verifier is not registered");
 
         // Get public inputs

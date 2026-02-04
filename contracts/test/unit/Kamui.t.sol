@@ -388,7 +388,6 @@ contract KamuiTest is Test {
 
         vm.expectEmit(address(kamui));
         emit Kamui.ShieldedTransfer(0, 0, commitments, nullifiers, shieldedTx.withdrawals);
-        // Anyone can shield the transfer as long as the proof is valid
         kamui.shieldedTransfer(shieldedTx, proof);
 
         // Should fail if nullifier is already used
@@ -410,6 +409,75 @@ contract KamuiTest is Test {
         assertEq(kamui.nullifierUsed(nullifiers[1]), true, "Nullifier 2 should be marked as used");
         assertEq(wormholeVault.totalSupply(), 100e18, "Total supply should not change after shield transfer");
         assertEq(wormholeVault.actualSupply(), 100e18, "Actual supply should not change after shield transfer");
+    }
+
+    function test_shieldedTransfer_unshield() public {
+        uint256 entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 0, "Should start with 0 total wormhole entries");
+
+        address from = makeAddr("from");
+        address to = makeAddr("to");
+        address unshieldTo = makeAddr("unshield to");
+        
+        _dealWormholeTokens(from, 100e18);
+
+        vm.prank(from);
+        wormholeVault.transfer(to, 100e18);
+
+        entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 2, "Should increment total wormhole entries by 2 after transfer");
+        
+        // append wormhole leaf
+        vm.prank(screener);
+        kamui.appendWormholeLeaf(1, true);
+
+        // shield transfer
+        (bytes32 wormholeRoot,,) = kamui.wormholeTree(0);
+        (bytes32 shieldedRoot, uint256 size,) = kamui.shieldedTree(0);
+        assertTrue(shieldedRoot == bytes32(0) && size == 0, "Shielded root and size should be 0 before any commitments inserted");
+        
+        bytes32[] memory nullifiers = new bytes32[](2);
+        nullifiers[0] = keccak256(abi.encodePacked("mock nullifier 1"));
+        nullifiers[1] = keccak256(abi.encodePacked("mock nullifier 2"));
+        uint256[] memory commitments = new uint256[](1);
+        commitments[0] = uint256(keccak256(abi.encodePacked("mock commitment 1"))) % SNARK_SCALAR_FIELD;
+        Kamui.Withdrawal[] memory withdrawals = new Kamui.Withdrawal[](1);
+        withdrawals[0] = Kamui.Withdrawal({
+            to: unshieldTo,
+            asset: address(wormholeVault),
+            id: 0,
+            amount: 50e18
+        });
+
+        Kamui.ShieldedTx memory shieldedTx = Kamui.ShieldedTx({
+            chainId: 1,
+            wormholeRoot: wormholeRoot,
+            wormholeNullifier: keccak256(abi.encodePacked("mock wormhole nullifier")),
+            shieldedRoot: shieldedRoot,
+            nullifiers: nullifiers,
+            commitments: commitments,
+            withdrawals: withdrawals
+        });
+        bytes memory proof = abi.encodePacked("mock zk proof");
+
+        vm.expectEmit(address(kamui));
+        emit Kamui.ShieldedTransfer(0, 0, commitments, nullifiers, withdrawals);
+        vm.expectCall(address(wormholeVault), abi.encodeWithSelector(IWormhole.unshield.selector, unshieldTo, 0, 50e18));
+        kamui.shieldedTransfer(shieldedTx, proof);
+
+        (bytes32 newShieldedRoot, uint256 newSize, uint256 newDepth) = kamui.shieldedTree(0);
+        assertEq(newShieldedRoot, bytes32(commitments[0]), "Shielded root should be the single commitment");
+        assertEq(newSize, 1, "Shielded tree size should be 1");
+        assertEq(newDepth, 0, "Shielded tree depth should be 0");
+        assertTrue(kamui.isShieldedRoot(bytes32(commitments[0])), "Shielded root should be marked as valid");
+
+        assertEq(kamui.wormholeNullifierUsed(shieldedTx.wormholeNullifier), true, "Wormhole nullifier should be marked as used");
+        assertEq(kamui.nullifierUsed(nullifiers[0]), true, "Nullifier 1 should be marked as used");
+        assertEq(kamui.nullifierUsed(nullifiers[1]), true, "Nullifier 2 should be marked as used");
+        assertEq(wormholeVault.balanceOf(unshieldTo), 50e18, "receiver address should get withdrawal amount (via minting new shares)");
+        assertEq(wormholeVault.balanceOf(to), 100e18, "to address should still have the original transfer amount (as burn address)");
+        assertEq(wormholeVault.totalSupply(), 150e18, "Total supply should increase by the withdrawal amount");
+        assertEq(wormholeVault.actualSupply(), 100e18, "Actual supply should not change after unshielding");
     }
 
     function test_createPool() public {
