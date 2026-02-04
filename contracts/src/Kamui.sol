@@ -24,8 +24,8 @@ contract Kamui is IKamui, EIP712, Ownable {
     uint256 public currentShieldedTreeId;
     uint256 public currentWormholeTreeId;
     
-    mapping(uint256 treeId => LeanIMTData) public shieldedTrees;
-    mapping(uint256 treeId => LeanIMTData) public wormholeTrees;
+    mapping(uint256 treeId => LeanIMTData) internal _shieldedTrees;
+    mapping(uint256 treeId => LeanIMTData) internal _wormholeTrees;
 
     mapping(bytes32 root => bool) public isWormholeRoot;
     mapping(bytes32 root => bool) public isShieldedRoot;
@@ -113,9 +113,17 @@ contract Kamui is IKamui, EIP712, Ownable {
     constructor(IPoseidon2 poseidon2_, IVerifier ragequitVerifier_, address governor_) EIP712("Kamui", "1") Ownable(governor_) {
         poseidon2 = poseidon2_;
         address poseidon2Address = address(poseidon2);
-        shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
-        wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
+        _shieldedTrees[currentShieldedTreeId].init(poseidon2Address);
+        _wormholeTrees[currentWormholeTreeId].init(poseidon2Address);
         ragequitVerifier = ragequitVerifier_;
+    }
+
+    function wormholeTree(uint256 treeId) external view returns (bytes32 root, uint256 size, uint256 depth) {
+        return (bytes32(_wormholeTrees[treeId].root()), _wormholeTrees[treeId].size, _wormholeTrees[treeId].depth);
+    }
+
+    function shieldedTree(uint256 treeId) external view returns (bytes32 root, uint256 size, uint256 depth) {
+        return (bytes32(_shieldedTrees[treeId].root()), _shieldedTrees[treeId].size, _shieldedTrees[treeId].depth);
     }
 
     function isPool(address pool) external view returns (bool) {
@@ -174,12 +182,13 @@ contract Kamui is IKamui, EIP712, Ownable {
         if (_isWormholeTreeFull()) {
             _createWormholeTree();
         }
-        wormholeTrees[currentWormholeTreeId].insert(commitment);
+        uint256 root = _wormholeTrees[currentWormholeTreeId].insert(commitment);
+        isWormholeRoot[bytes32(root)] = true;
         _wormholeEntriesCommitted[entryId] = true;
         unchecked {
             totalWormholeCommitments++;
         }
-        emit WormholeCommitment(entryId, commitment, currentWormholeTreeId, wormholeTrees[currentWormholeTreeId].size - 1, assetId, entry.from, entry.to, entry.amount, approved);
+        emit WormholeCommitment(entryId, commitment, currentWormholeTreeId, _wormholeTrees[currentWormholeTreeId].size - 1, assetId, entry.from, entry.to, entry.amount, approved);
     }
 
     function appendManyWormholeLeaves(WormholePreCommitment[] memory nodes) external {
@@ -193,7 +202,7 @@ contract Kamui is IKamui, EIP712, Ownable {
             _createWormholeTree();
         }
         uint256[] memory commitments = new uint256[](nodes.length);
-        uint256 startLeafIndex = wormholeTrees[currentWormholeTreeId].size;
+        uint256 startLeafIndex = _wormholeTrees[currentWormholeTreeId].size;
         for (uint256 i = 0; i < nodes.length; i++) {
             TransferMetadata memory entry = _wormholeEntries[nodes[i].entryId];
             bytes32 assetId = _getAssetId(entry.asset, entry.id);
@@ -211,7 +220,8 @@ contract Kamui is IKamui, EIP712, Ownable {
                 nodes[i].approved
             );
         }
-        wormholeTrees[currentWormholeTreeId].insertMany(commitments);
+        uint256 root = _wormholeTrees[currentWormholeTreeId].insertMany(commitments);
+        isWormholeRoot[bytes32(root)] = true;
         unchecked {
             totalWormholeCommitments += nodes.length;
         }
@@ -219,20 +229,20 @@ contract Kamui is IKamui, EIP712, Ownable {
 
     function _createWormholeTree() internal {
         currentWormholeTreeId++;
-        wormholeTrees[currentWormholeTreeId].init(address(poseidon2));
+        _wormholeTrees[currentWormholeTreeId].init(address(poseidon2));
     }
 
     function _createShieldedTree() internal {
         currentShieldedTreeId++;
-        shieldedTrees[currentShieldedTreeId].init(address(poseidon2));
+        _shieldedTrees[currentShieldedTreeId].init(address(poseidon2));
     }
 
     function _isWormholeTreeFull() internal view returns (bool) {
-        return _isMerkleTreeFull(wormholeTrees[currentWormholeTreeId]);
+        return _isMerkleTreeFull(_wormholeTrees[currentWormholeTreeId]);
     }
 
     function _isShieldedTreeFull() internal view returns (bool) {
-        return _isMerkleTreeFull(shieldedTrees[currentShieldedTreeId]);
+        return _isMerkleTreeFull(_shieldedTrees[currentShieldedTreeId]);
     }
 
     function _isMerkleTreeFull(LeanIMTData storage tree) internal view returns (bool) {
@@ -240,11 +250,11 @@ contract Kamui is IKamui, EIP712, Ownable {
     }
 
     function _isWormholeTreeOverflow(uint256 batchSize) internal view returns (bool) {
-        return wormholeTrees[currentWormholeTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
+        return _wormholeTrees[currentWormholeTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
     }
 
     function _isShieldedTreeOverflow(uint256 batchSize) internal view returns (bool) {
-        return shieldedTrees[currentShieldedTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
+        return _shieldedTrees[currentShieldedTreeId].size + batchSize > 2 ** MERKLE_TREE_DEPTH;
     }
 
     function shieldedTransfer(ShieldedTx memory shieldedTx, bytes calldata proof) external {
@@ -283,7 +293,7 @@ contract Kamui is IKamui, EIP712, Ownable {
         if (_isShieldedTreeOverflow(shieldedTx.commitments.length)) {
             _createShieldedTree();
         }
-        shieldedTrees[currentShieldedTreeId].insertMany(shieldedTx.commitments);
+        _shieldedTrees[currentShieldedTreeId].insertMany(shieldedTx.commitments);
 
         // If withdrawals are present, mint new shares for each withdrawal
         for (uint256 i; i < shieldedTx.withdrawals.length; i++) {

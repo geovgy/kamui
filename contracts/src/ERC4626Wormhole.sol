@@ -50,6 +50,10 @@ contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
         return _totalAssets;
     }
 
+    function actualSupply() external view returns (uint256) {
+        return _totalShares;
+    }
+
     function convertToShares(uint256 assets) external view returns (uint256) {
         return vault.convertToShares(assets);
     }

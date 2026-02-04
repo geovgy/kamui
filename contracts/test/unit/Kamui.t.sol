@@ -12,6 +12,7 @@ import {Poseidon2Yul_BN254 as Poseidon2} from "poseidon2-evm/bn254/yul/Poseidon2
 import {MockVerifier} from "../mock/MockVerifier.sol";
 import {IVerifier} from "../../src/interfaces/IVerifier.sol";
 import {ERC4626Wormhole} from "../../src/ERC4626Wormhole.sol";
+import {IWormhole} from "../../src/interfaces/IWormhole.sol";
 
 contract KamuiTest is Test {
     MockERC20 underlying;
@@ -24,6 +25,7 @@ contract KamuiTest is Test {
     ERC4626Wormhole wormholeVault;
 
     IPoseidon2 poseidon2;
+    MockVerifier verifier;
 
     function _dealWormholeTokens(address to, uint256 shares) internal {
         uint256 amount = vault.convertToAssets(shares);
@@ -45,7 +47,7 @@ contract KamuiTest is Test {
     function setUp() public {
         // deploy contracts
         poseidon2 = IPoseidon2(address(new Poseidon2()));
-        IVerifier verifier = new MockVerifier();
+        verifier = new MockVerifier();
         kamui = new Kamui(poseidon2, verifier, owner);
         implementation = new ERC4626Wormhole(kamui);
 
@@ -238,6 +240,71 @@ contract KamuiTest is Test {
         kamui.appendWormholeLeaf(0, false);
 
         assertEq(kamui.totalWormholeCommitments(), 2, "Incorrect total wormhole commitments");
+    }
+
+    function test_ragequit() public {
+        uint256 entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 0, "Should start with 0 total wormhole entries");
+
+        address from = makeAddr("from");
+        address to = makeAddr("to");
+        
+        _dealWormholeTokens(from, 100e18);
+
+        vm.prank(from);
+        wormholeVault.transfer(to, 100e18);
+
+        entryCount = kamui.totalWormholeEntries();
+        assertEq(entryCount, 2, "Should increment total wormhole entries by 2 after transfer");
+
+        // append wormhole leaf
+        vm.prank(screener);
+        kamui.appendWormholeLeaf(1, false);
+
+        // ragequit
+        (bytes32 root,,) = kamui.wormholeTree(0);
+        Kamui.RagequitTx memory ragequitTx = Kamui.RagequitTx({
+            entryId: 1, 
+            approved: false, 
+            wormholeRoot: root, 
+            wormholeNullifier: keccak256(abi.encodePacked("mock nullifier"))
+        });
+        bytes memory proof = abi.encodePacked("mock zk proof");
+
+        assertEq(kamui.wormholeNullifierUsed(ragequitTx.wormholeNullifier), false, "Nullifier should not be marked as used yet");
+
+        // Should fail if root is not valid
+        ragequitTx.wormholeRoot = bytes32(0);
+        vm.expectRevert("Kamui: wormhole root is not valid");
+        kamui.ragequit(ragequitTx, proof);
+
+        // Set wormhole root back
+        ragequitTx.wormholeRoot = root;
+
+        // Should fail if proof is not valid
+        verifier.setReturnValue(false);
+        vm.expectRevert("Kamui: proof is not valid");
+        kamui.ragequit(ragequitTx, proof);
+
+        // Set verifier back to true
+        verifier.setReturnValue(true);
+
+        vm.expectEmit(address(kamui));
+        emit Kamui.Ragequit(1, address(this), from, address(wormholeVault), 0, 100e18);
+        emit Kamui.WormholeNullifier(ragequitTx.wormholeNullifier);
+        // Anyone can ragequit the entry as long as the proof is valid
+        vm.expectCall(address(wormholeVault), abi.encodeWithSelector(IWormhole.unshield.selector, from, 0, 100e18));
+        kamui.ragequit(ragequitTx, proof);
+
+        // Should fail if nullifier is already used
+        vm.expectRevert("Kamui: wormhole nullifier is already used");
+        kamui.ragequit(ragequitTx, proof);
+
+        assertEq(kamui.wormholeNullifierUsed(ragequitTx.wormholeNullifier), true, "Nullifier should be marked as used");
+        assertEq(wormholeVault.balanceOf(from), 100e18, "from address should have the full transfer amount back (via minting new shares) after ragequit");
+        assertEq(wormholeVault.balanceOf(to), 100e18, "to address should still have the original transfer amount (as burn address)");
+        assertEq(wormholeVault.totalSupply(), 200e18, "Total supply should increase by the transfer amount after ragequit");
+        assertEq(wormholeVault.actualSupply(), 100e18, "Actual supply should no change after ragequit");
     }
 
     function test_createPool() public {
