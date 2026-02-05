@@ -5,8 +5,8 @@ import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
-import {IKamui} from "./interfaces/IKamui.sol";
-import {Wormhole} from "./Wormhole.sol";
+import {IKamui} from "../interfaces/IKamui.sol";
+import {Wormhole} from "../Wormhole.sol";
 
 contract ERC4626Wormhole is IERC4626, ERC20, Wormhole {
     using SafeERC20 for IERC20;
