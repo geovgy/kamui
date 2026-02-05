@@ -8,6 +8,8 @@ import {
 } from "@/src/components/ui/table";
 import { Button } from "@/src/components/ui/button";
 import { AssetDialog } from "@/src/components/asset-dialog";
+import { TransferDialog } from "./transfer-dialog";
+import { ArrowRightIcon, ArrowUpRightIcon } from "lucide-react";
 
 // Mock data for available assets
 const assets = [
@@ -42,8 +44,16 @@ export function AssetsTable() {
               <AssetDialog
                 asset={asset}
                 trigger={
-                  <Button variant="outline" className="rounded-full px-8">
-                    View
+                  <Button variant="outline" className="rounded-full mr-2">
+                    Manage
+                  </Button>
+                }
+              />
+              <TransferDialog
+                trigger={
+                  <Button variant="outline" className="rounded-full">
+                    Send
+                    <ArrowUpRightIcon className="size-4" />
                   </Button>
                 }
               />
