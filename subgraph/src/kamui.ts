@@ -217,6 +217,11 @@ export function handleWormholeCommitment(event: WormholeCommitmentEvent): void {
 
   entity.save()
 
+  // Update entry with commitment
+  let entry = WormholeEntry.load(Bytes.fromI32(event.params.entryId.toI32()))!
+  entry.submitted = true
+  entry.save()
+
   // append to wormhole tree
   let tree = _loadOrCreateWormholeTree(event.params.treeId, event.block.timestamp)
   tree.commitments.push(entity.id)
@@ -249,6 +254,7 @@ export function handleWormholeEntry(event: WormholeEntryEvent): void {
   entity.token = event.params.token
   entity.tokenId = event.params.id
   entity.amount = event.params.amount
+  entity.submitted = false
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp

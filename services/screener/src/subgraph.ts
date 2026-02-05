@@ -22,7 +22,7 @@ export async function queryPendingWormholeEntries() {
   `
     query WormholeEntriesPending($orderBy: String!, $orderDirection: String!, $first: Int!) {
       wormholeEntries(
-        where: { commitment: null },
+        where: { submitted: false },
         orderBy: $orderBy,
         orderDirection: $orderDirection,
         first: $first,

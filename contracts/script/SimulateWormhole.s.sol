@@ -1,0 +1,103 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.28;
+
+import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
+import {Kamui} from "../src/Kamui.sol";
+import {Poseidon2Yul_BN254 as Poseidon2} from "poseidon2-evm/bn254/yul/Poseidon2Yul.sol";
+import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
+import {IVerifier} from "../src/interfaces/IVerifier.sol";
+import {MockVerifier} from "../test/mock/MockVerifier.sol"; // TODO: use real verifiers
+import {ERC20Wormhole} from "../src/ERC20Wormhole.sol";
+import {MockERC20} from "../test/mock/MockERC20.sol";
+import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+
+contract SimulateWormholeScript is Script {
+    using Strings for *;
+
+    address GOVERNOR = address(0x1); // TODO: set governor address
+    address BURN_ADDRESS = address(0xDEAD);
+
+    Kamui kamui;
+
+    IPoseidon2 poseidon2;
+    IVerifier ragequitVerifier;
+
+    MockERC20 underlying;
+    ERC20Wormhole wormholeWrapper;    
+
+    struct AddUTXOVerifierParams {
+        uint256   inputs;
+        uint256   outputs;
+        IVerifier verifier;
+    }
+    
+    function run() public {
+        vm.startBroadcast();
+
+        poseidon2 = IPoseidon2(address(new Poseidon2()));
+        ragequitVerifier = new MockVerifier();
+        kamui = new Kamui(poseidon2, ragequitVerifier, msg.sender);
+
+        console.log("\nDeployment Results:");
+        console.log("\nKamui -->", address(kamui));
+        console.log("|-- Poseidon2 -->", address(poseidon2));
+        console.log("|-- Ragequit verifier -->", address(ragequitVerifier));
+        console.log("|-- Governor -->", GOVERNOR);
+
+        // add utxo verifiers
+        AddUTXOVerifierParams[] memory params = new AddUTXOVerifierParams[](2);
+        params[0] = AddUTXOVerifierParams({
+            inputs: 2,
+            outputs: 2,
+            verifier: new MockVerifier()
+        });
+        params[1] = AddUTXOVerifierParams({
+            inputs: 2,
+            outputs: 3,
+            verifier: new MockVerifier()
+        });
+
+        console.log("\nAdding UTXO verifiers:");
+        for (uint256 i; i < params.length; i++) {
+            kamui.addVerifier(params[i].verifier, params[i].inputs, params[i].outputs);
+
+            string memory utxoType = string(bytes.concat(bytes(params[i].inputs.toString()), "x", bytes(params[i].outputs.toString()), " -->"));
+            console.log("|--", utxoType, address(params[i].verifier));
+        }
+
+        console.log("\nSetting wormhole entry approver:");
+        kamui.setWormholeApprover(msg.sender, true);
+        console.log("|-- Approver -->", msg.sender);
+
+        // create underlying token
+        underlying = new MockERC20();
+
+        // create and set wormhole pool implementation
+        wormholeWrapper = new ERC20Wormhole(kamui, "Kamui Wrapped", "kw");
+
+        console.log("\nSetting wormhole asset implementations:");
+        kamui.setWormholeAssetImplementation(address(wormholeWrapper), true);
+        console.log("|-- ERC20Wormhole -->", address(wormholeWrapper));
+
+        // create wormhole asset
+        console.log("\nCreating Wormhole asset:");
+        bytes memory initData = abi.encodePacked(address(underlying));
+        address asset = kamui.createWormholeAsset(address(wormholeWrapper), initData);
+        wormholeWrapper = ERC20Wormhole(asset);
+
+        console.log("|-- Wormhole asset -->", address(wormholeWrapper), "--", wormholeWrapper.symbol());
+        console.log("    |-- Underlying token -->", address(underlying), "--", underlying.symbol());
+
+        // deposit underlying token
+        console.log("\nDepositing underlying token and sending to burn address:");
+        underlying.mint(msg.sender, 100_000_000e18);
+        underlying.approve(address(wormholeWrapper), 100_000_000e18);
+        wormholeWrapper.depositFor(BURN_ADDRESS, 100_000_000e18);
+
+        console.log("|-- Burn address -->", BURN_ADDRESS);
+        console.log("    |-- Sent:", 100_000_000e18, wormholeWrapper.symbol());
+
+        vm.stopBroadcast();
+    }
+}
