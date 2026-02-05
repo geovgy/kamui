@@ -1,0 +1,130 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import { Button } from "@/src/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/src/components/ui/input-group";
+import { Switch } from "@/src/components/ui/switch";
+import { InfoIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+interface AssetDialogProps {
+  asset: {
+    name: string;
+    accepts: string;
+  };
+  trigger: React.ReactNode;
+}
+
+export function AssetDialog({ asset, trigger }: AssetDialogProps) {
+  const [amount, setAmount] = useState("100");
+  const [amountRequestType, setAmountRequestType] = useState<"exact-input" | "exact-output">("exact-input");
+  const [wormholeTransfer, setWormholeTransfer] = useState(false);
+
+  const inputAmount = useMemo(() => {
+    if (amountRequestType === "exact-input") {
+      return amount;
+    } else {
+      return ((parseFloat(amount) || 0) * (1 - 0.1));
+    }
+  }, [amount, amountRequestType]);
+
+  // Mock calculation - in real app this would come from a price feed
+  const outputAmount = useMemo(() => {
+    if (amountRequestType === "exact-output") {
+      return amount;
+    } else {
+      return ((parseFloat(amount) || 0) * (1 + 0.1));
+    }
+  }, [amount, amountRequestType]);
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <div className="flex flex-col gap-4">
+          {/* Input amount field */}
+          <InputGroup className="h-12 rounded-full">
+            <InputGroupInput
+              type="text"
+              placeholder="0"
+              value={inputAmount}
+              onChange={(e) => {
+                setAmount(e.target.value.replace(/[^0-9.]/g, ''));
+                setAmountRequestType("exact-input");
+              }}
+              className={`text-right text-lg ${amountRequestType === "exact-input" ? "text-foreground" : "text-muted-foreground"} focus:text-foreground`}
+            />
+            <InputGroupAddon align="inline-end" className="pr-4">
+              <div className="w-20 flex items-center gap-2">
+                <div className="size-6 rounded-full border border-current" />
+                <span className="font-medium text-foreground">
+                  {asset.accepts}
+                </span>
+              </div>
+            </InputGroupAddon>
+          </InputGroup>
+
+          {/* Output amount display */}
+          <InputGroup className="h-12 rounded-full bg-muted/50">
+            <InputGroupInput
+              type="text"
+              value={outputAmount}
+              onChange={(e) => {
+                setAmount(e.target.value.replace(/[^0-9.]/g, ''));
+                setAmountRequestType("exact-output");
+              }}
+              className={`text-right text-lg ${amountRequestType === "exact-output" ? "text-foreground" : "text-muted-foreground"} focus:text-foreground`}
+            />
+            <InputGroupAddon align="inline-end" className="pr-4">
+              <div className="w-20 flex items-center gap-2">
+                <div className="size-6 rounded-full border border-current" />
+                <span className="font-medium text-foreground">{asset.name}</span>
+              </div>
+            </InputGroupAddon>
+          </InputGroup>
+
+          {/* Custom recipient link */}
+          <button
+            type="button"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors text-center"
+          >
+            custom recipient?
+          </button>
+
+          {/* Wormhole transfer toggle */}
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={wormholeTransfer}
+              onCheckedChange={setWormholeTransfer}
+            />
+            <span className="text-sm text-muted-foreground">
+              Send via Wormhole?
+            </span>
+            <Tooltip>
+              <TooltipTrigger>
+                <InfoIcon className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">This will send to a "burn" address which you can then secretly use in the shielded pool.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Send button */}
+          <Button variant="outline" className="w-full h-12 rounded-full text-base">
+            Send
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
