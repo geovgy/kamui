@@ -4,7 +4,7 @@ import { Barretenberg, ProofData, UltraHonkBackend } from "@aztec/bb.js"
 export type CircuitType = "utxo_2x2" | "ragequit";
 
 function getCircuitPath(type: CircuitType): string {
-  return `../artifacts/circuits/${type}.json`;
+  return `@/artifacts/circuits/${type}.json`;
 }
 
 async function getCircuit(type: CircuitType): Promise<CompiledCircuit> {
