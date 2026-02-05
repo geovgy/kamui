@@ -1,5 +1,5 @@
 {
-  "name": "contracts",
+  "name": "@kamui/contracts",
   "private": true,
   "scripts": {
     "build": "forge build",

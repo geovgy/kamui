@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "workspaces": [
+    "webapp",
     "circuits",
     "contracts",
     "services/*",

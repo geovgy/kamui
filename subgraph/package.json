@@ -1,5 +1,5 @@
 {
-  "name": "subgraph",
+  "name": "@kamui/subgraph",
   "private": true,
   "scripts": {
     "codegen": "graph codegen",
