@@ -13,7 +13,7 @@ async function getCircuit(type: CircuitType): Promise<CompiledCircuit> {
   return circuit as CompiledCircuit;
 }
 
-export class Prover {
+export class ZKProver {
   private _backend: UltraHonkBackend | undefined
   private _circuitType: CircuitType
   private _noir: Noir | undefined
@@ -26,14 +26,14 @@ export class Prover {
 
   get backend() {
     if (!this._backend) {
-      throw new Error("Prover not initialized")
+      throw new Error("ZKProver not initialized")
     }
     return this._backend
   }
 
   get noir() {
     if (!this._noir) {
-      throw new Error("Prover not initialized")
+      throw new Error("ZKProver not initialized")
     }
     return this._noir
   }

@@ -1,11 +1,11 @@
-import { Prover } from "@/src/prover"
-import { type QueryStatus, useQuery, useQueryClient } from "@tanstack/react-query"
-import { createContext, useState } from "react"
+import { ZKProver } from "@/src/zk-prover"
+import { type QueryStatus, useQuery } from "@tanstack/react-query"
+import { createContext } from "react"
 
 
 export const ZKProverContext = createContext<{
-  ragequitProver: Prover | undefined
-  utxoProver: Prover | undefined
+  ragequitProver: ZKProver | undefined
+  utxoProver: ZKProver | undefined
   status: QueryStatus
   isInitialized: boolean
   isLoading: boolean
@@ -24,8 +24,8 @@ export const ZKProverProvider = ({ children }: { children: React.ReactNode }) =>
   const { data, status, refetch, isLoading } = useQuery({
     queryKey: ['zk-provers'],
     queryFn: async () => {
-      const ragequitProver = new Prover('ragequit')
-      const utxoProver = new Prover('utxo_2x2')
+      const ragequitProver = new ZKProver('ragequit')
+      const utxoProver = new ZKProver('utxo_2x2')
       
       await Promise.all([ragequitProver.init(), utxoProver.init()])
       return { ragequitProver, utxoProver }

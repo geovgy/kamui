@@ -1,5 +1,5 @@
 import { useContext } from "react"
-import { ZKProverContext } from "../context/prover"
+import { ZKProverContext } from "../context/zk-prover"
 
 export const useZKProverContext = () => {
   const context = useContext(ZKProverContext)

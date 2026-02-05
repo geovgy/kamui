@@ -2,8 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
+import { ConnectKitProvider } from 'connectkit'
 import { wagmiConfig } from '@/src/config'
-import { ZKProverProvider } from "../context/prover";
+import { ZKProverProvider } from "../context/zk-prover";
 
 const queryClient = new QueryClient()
 
@@ -15,9 +16,11 @@ export function Providers({
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <ZKProverProvider>
-          {children}
-        </ZKProverProvider>
+        <ConnectKitProvider>
+          <ZKProverProvider>
+            {children}
+          </ZKProverProvider>
+        </ConnectKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
