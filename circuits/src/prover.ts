@@ -1,5 +1,5 @@
 import { Noir, type InputMap, type CompiledCircuit } from "@noir-lang/noir_js";
-import { Barretenberg, type ProofData, UltraHonkBackend } from "@aztec/bb.js";
+import { Barretenberg, type ProofData, UltraHonkBackend, type VerifierTarget } from "@aztec/bb.js";
 
 export type CircuitType = "utxo_2x2" | "ragequit";
 
@@ -62,5 +62,10 @@ export class Prover {
   async getVerificationKey(options: { keccak: boolean } = { keccak: false }) {
     await this.init()
     return await this.backend.getVerificationKey(options)
+  }
+
+  async getSolidityVerifier(options: { keccak: boolean } = { keccak: false }) {
+    const vk = await this.getVerificationKey(options)
+    return await this.backend.getSolidityVerifier(vk, options)
   }
 }

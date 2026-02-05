@@ -8,20 +8,27 @@ import {Poseidon2Yul_BN254 as Poseidon2} from "poseidon2-evm/bn254/yul/Poseidon2
 import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {MockVerifier} from "../test/mock/MockVerifier.sol"; // TODO: use real verifiers
+import {HonkVerifier as UTXO2x2Verifier} from "../src/verifiers/UTXO2x2Verifier.sol";
+import {HonkVerifier as RagequitVerifier} from "../src/verifiers/RagequitVerifier.sol";
+import {ERC20Wormhole} from "../src/ERC20Wormhole.sol";
 import {ERC4626Wormhole} from "../src/ERC4626Wormhole.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract DeployKamuiScript is Script {
     using Strings for *;
 
-    address GOVERNOR = address(0x1); // TODO: set governor address
+    // address GOVERNOR = address(0x1); // TODO: set governor address
+    address GOVERNOR = vm.envAddress("GOVERNOR");
 
     Kamui kamui;
 
     IPoseidon2 poseidon2;
     IVerifier ragequitVerifier;
 
-    ERC4626Wormhole wormholeVaultImplementation;    
+    IVerifier utxo2x2Verifier;
+
+    ERC20Wormhole erc20Implementation;
+    ERC4626Wormhole erc4626Implementation;
 
     struct AddUTXOVerifierParams {
         uint256   inputs;
@@ -33,7 +40,7 @@ contract DeployKamuiScript is Script {
         vm.startBroadcast();
 
         poseidon2 = IPoseidon2(address(new Poseidon2()));
-        ragequitVerifier = new MockVerifier();
+        ragequitVerifier = new RagequitVerifier();
         kamui = new Kamui(poseidon2, ragequitVerifier, msg.sender);
 
         console.log("\nDeployment Results:");
@@ -43,16 +50,11 @@ contract DeployKamuiScript is Script {
         console.log("|-- Governor -->", GOVERNOR);
 
         // add utxo verifiers
-        AddUTXOVerifierParams[] memory params = new AddUTXOVerifierParams[](2);
+        AddUTXOVerifierParams[] memory params = new AddUTXOVerifierParams[](1);
         params[0] = AddUTXOVerifierParams({
             inputs: 2,
             outputs: 2,
-            verifier: new MockVerifier()
-        });
-        params[1] = AddUTXOVerifierParams({
-            inputs: 2,
-            outputs: 3,
-            verifier: new MockVerifier()
+            verifier: new UTXO2x2Verifier()
         });
 
         console.log("\nAdding UTXO verifiers:");
@@ -64,11 +66,14 @@ contract DeployKamuiScript is Script {
         }
 
         // create and set wormhole pool implementation
-        wormholeVaultImplementation = new ERC4626Wormhole(kamui);
+        erc20Implementation = new ERC20Wormhole(kamui, "Kamui Wrapped ", "kw");
+        erc4626Implementation = new ERC4626Wormhole(kamui);
 
         console.log("\nSetting wormhole asset implementations:");
-        kamui.setWormholeAssetImplementation(address(wormholeVaultImplementation), true);
-        console.log("|-- ERC4626Wormhole -->", address(wormholeVaultImplementation));
+        kamui.setWormholeAssetImplementation(address(erc20Implementation), true);
+        console.log("|-- ERC20Wormhole -->", address(erc20Implementation));
+        kamui.setWormholeAssetImplementation(address(erc4626Implementation), true);
+        console.log("|-- ERC4626Wormhole -->", address(erc4626Implementation));
 
         // Transfer ownership to governor
         kamui.transferOwnership(GOVERNOR);
