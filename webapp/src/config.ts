@@ -1,9 +1,11 @@
 import { createConfig, http } from 'wagmi'
 import { getDefaultConfig } from 'connectkit'
 import { sepolia } from 'wagmi/chains'
-import { WALLETCONNECT_PROJECT_ID } from './env'
+import { CHAIN_RPC_URL, WALLETCONNECT_PROJECT_ID } from './env'
 
 export const chain = sepolia
+
+export const chainRpcUrl = CHAIN_RPC_URL
 
 export const wagmiConfig = createConfig(
   getDefaultConfig({
@@ -11,7 +13,7 @@ export const wagmiConfig = createConfig(
     chains: [chain],
     transports: {
       // RPC URL for each chain
-      [chain.id]: http(chain.rpcUrls.default.http[0]),
+      [chain.id]: http(chainRpcUrl),
     },
 
     // Required API Keys
