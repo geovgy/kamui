@@ -1,5 +1,22 @@
 import type { Address } from "viem";
 
+export interface BalanceInfo {
+  publicBalance: bigint;
+  privateBalance: bigint;
+}
+
+export interface Asset {
+  address: Address;
+  name: string;
+  symbol: string;
+  decimals: number;
+  balance: bigint;
+}
+
+export interface WormholeAsset extends Asset {
+  implementation: Address;
+}
+
 export enum TransferType {
   TRANSFER = 1,
   WITHDRAWAL = 2,

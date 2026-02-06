@@ -6,7 +6,8 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { Asset, WrapperDialogContent, WormholeAsset } from "./tx-states/wrapper";
+import { WrapperDialogContent } from "./tx-states/wrapper";
+import { Asset, WormholeAsset } from "@/src/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Address, erc20Abi, zeroAddress } from "viem";
 import { useBalance, useConnection, useReadContracts } from "wagmi";

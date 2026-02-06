@@ -12,6 +12,7 @@ import { Abi, Address, erc4626Abi, formatUnits, parseAbi, parseUnits } from "vie
 import { useConnection, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "viem/actions";
 import { toast } from "sonner";
+import { Asset, WormholeAsset } from "@/src/types";
 
 function formatBalance(balance: bigint, decimals = 18): string {
   const formatted = formatUnits(balance, decimals);
@@ -19,18 +20,6 @@ function formatBalance(balance: bigint, decimals = 18): string {
   if (num === 0) return "0";
   if (num < 0.0001) return "<0.0001";
   return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
-}
-
-export interface Asset {
-  address: Address;
-  name: string;
-  symbol: string;
-  decimals: number;
-  balance: bigint;
-}
-
-export interface WormholeAsset extends Asset {
-  implementation: Address;
 }
 
 export interface WrapperDialogContentProps {

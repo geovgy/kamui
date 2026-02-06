@@ -92,7 +92,7 @@ export function AssetsTable() {
           balance: metadatas?.[startIndex + 3] as bigint ?? 0n,
           implementation: asset.implementation.address
         },
-        accountInfo: {
+        wormholeBalances: {
           publicBalance: metadatas?.[startIndex + 3] as bigint ?? 0n,
           privateBalance: 0n,
         },
@@ -128,8 +128,8 @@ export function AssetsTable() {
           <TableRow key={asset.id}>
             <TableCell className="font-medium">{asset.metadata.name}</TableCell>
             <TableCell className="text-center">{asset.implementationType}</TableCell>
-            <TableCell className="text-right">{formatUnits(asset.accountInfo.publicBalance, asset.metadata.decimals)} {asset.metadata.symbol}</TableCell>
-            <TableCell className="text-right">{formatUnits(asset.accountInfo.privateBalance, 18)} {asset.metadata.symbol}</TableCell>
+            <TableCell className="text-right">{formatUnits(asset.wormholeBalances.publicBalance, asset.metadata.decimals)} {asset.metadata.symbol}</TableCell>
+            <TableCell className="text-right">{formatUnits(asset.wormholeBalances.privateBalance, 18)} {asset.metadata.symbol}</TableCell>
             <TableCell className="text-right">
               <WrapperDialog
                 implementationType={asset.implementationType}
@@ -143,6 +143,8 @@ export function AssetsTable() {
                 }
               />
               <TransferDialog
+                wormholeAsset={asset.metadata}
+                balances={asset.wormholeBalances}
                 trigger={
                   <Button variant="outline" className="rounded-full">
                     Send
