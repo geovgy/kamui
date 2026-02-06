@@ -41,6 +41,8 @@ contract DeployKamuiScript is Script {
     function run() public {
         vm.startBroadcast();
 
+        assert(GOVERNOR != address(0));
+
         poseidon2 = IPoseidon2(address(new Poseidon2()));
         ragequitVerifier = new RagequitVerifier();
         kamui = new Kamui(poseidon2, ragequitVerifier, msg.sender);
@@ -81,7 +83,9 @@ contract DeployKamuiScript is Script {
         console.log("|-- ERC4626Wormhole -->", address(erc4626Implementation));
 
         // Transfer ownership to governor
-        kamui.transferOwnership(GOVERNOR);
+        if (GOVERNOR != msg.sender) {
+            kamui.transferOwnership(GOVERNOR);
+        }
 
         vm.stopBroadcast();
     }
