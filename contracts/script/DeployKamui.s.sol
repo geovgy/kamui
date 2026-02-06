@@ -10,8 +10,9 @@ import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {MockVerifier} from "../test/mock/MockVerifier.sol"; // TODO: use real verifiers
 import {HonkVerifier as UTXO2x2Verifier} from "../src/verifiers/UTXO2x2Verifier.sol";
 import {HonkVerifier as RagequitVerifier} from "../src/verifiers/RagequitVerifier.sol";
-import {ERC20Wormhole} from "../src/ERC20Wormhole.sol";
-import {ERC4626Wormhole} from "../src/ERC4626Wormhole.sol";
+import {WETHWormhole} from "../src/wormholes/WETHWormhole.sol";
+import {ERC20Wormhole} from "../src/wormholes/ERC20Wormhole.sol";
+import {ERC4626Wormhole} from "../src/wormholes/ERC4626Wormhole.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract DeployKamuiScript is Script {
@@ -27,6 +28,7 @@ contract DeployKamuiScript is Script {
 
     IVerifier utxo2x2Verifier;
 
+    WETHWormhole wethImplementation;
     ERC20Wormhole erc20Implementation;
     ERC4626Wormhole erc4626Implementation;
 
@@ -38,6 +40,8 @@ contract DeployKamuiScript is Script {
     
     function run() public {
         vm.startBroadcast();
+
+        assert(GOVERNOR != address(0));
 
         poseidon2 = IPoseidon2(address(new Poseidon2()));
         ragequitVerifier = new RagequitVerifier();
@@ -66,17 +70,22 @@ contract DeployKamuiScript is Script {
         }
 
         // create and set wormhole pool implementation
+        wethImplementation = new WETHWormhole(kamui);
         erc20Implementation = new ERC20Wormhole(kamui, "Kamui Wrapped ", "kw");
         erc4626Implementation = new ERC4626Wormhole(kamui);
 
         console.log("\nSetting wormhole asset implementations:");
+        kamui.setWormholeAssetImplementation(address(wethImplementation), true);
+        console.log("|-- WETHWormhole -->", address(wethImplementation));
         kamui.setWormholeAssetImplementation(address(erc20Implementation), true);
         console.log("|-- ERC20Wormhole -->", address(erc20Implementation));
         kamui.setWormholeAssetImplementation(address(erc4626Implementation), true);
         console.log("|-- ERC4626Wormhole -->", address(erc4626Implementation));
 
         // Transfer ownership to governor
-        kamui.transferOwnership(GOVERNOR);
+        if (GOVERNOR != msg.sender) {
+            kamui.transferOwnership(GOVERNOR);
+        }
 
         vm.stopBroadcast();
     }

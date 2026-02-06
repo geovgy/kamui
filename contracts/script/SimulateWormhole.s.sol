@@ -8,7 +8,7 @@ import {Poseidon2Yul_BN254 as Poseidon2} from "poseidon2-evm/bn254/yul/Poseidon2
 import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 import {IVerifier} from "../src/interfaces/IVerifier.sol";
 import {MockVerifier} from "../test/mock/MockVerifier.sol"; // TODO: use real verifiers
-import {ERC20Wormhole} from "../src/ERC20Wormhole.sol";
+import {ERC20Wormhole} from "../src/wormholes/ERC20Wormhole.sol";
 import {MockERC20} from "../test/mock/MockERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 

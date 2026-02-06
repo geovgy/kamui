@@ -11,7 +11,7 @@ import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 import {Poseidon2Yul_BN254 as Poseidon2} from "poseidon2-evm/bn254/yul/Poseidon2Yul.sol";
 import {MockVerifier} from "../mock/MockVerifier.sol";
 import {IVerifier} from "../../src/interfaces/IVerifier.sol";
-import {ERC4626Wormhole} from "../../src/ERC4626Wormhole.sol";
+import {ERC4626Wormhole} from "../../src/wormholes/ERC4626Wormhole.sol";
 import {IWormhole} from "../../src/interfaces/IWormhole.sol";
 import {SNARK_SCALAR_FIELD} from "../../src/utils/Constants.sol";
 
