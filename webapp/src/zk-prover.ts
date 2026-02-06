@@ -1,16 +1,19 @@
 import { Noir, type CompiledCircuit, type InputMap } from "@noir-lang/noir_js"
 import { Barretenberg, ProofData, UltraHonkBackend } from "@aztec/bb.js"
 
+// Static imports for circuits - these get bundled by webpack
+import ragequitCircuit from "@/artifacts/circuits/ragequit.json"
+import utxo2x2Circuit from "@/artifacts/circuits/utxo_2x2.json"
+
 export type CircuitType = "utxo_2x2" | "ragequit";
 
-function getCircuitPath(type: CircuitType): string {
-  return `@/artifacts/circuits/${type}.json`;
+const circuits: Record<CircuitType, CompiledCircuit> = {
+  ragequit: ragequitCircuit as unknown as CompiledCircuit,
+  utxo_2x2: utxo2x2Circuit as unknown as CompiledCircuit,
 }
 
-async function getCircuit(type: CircuitType): Promise<CompiledCircuit> {
-  const importPath = getCircuitPath(type);
-  const circuit = await import(importPath);
-  return circuit as CompiledCircuit;
+function getCircuit(type: CircuitType): CompiledCircuit {
+  return circuits[type];
 }
 
 export class ZKProver {
@@ -40,7 +43,7 @@ export class ZKProver {
 
   async init() {
     if (this._initialized) return
-    const circuit = await getCircuit(this._circuitType)
+    const circuit = getCircuit(this._circuitType)
     this._noir = new Noir(circuit)
     const api = await Barretenberg.new()
     this._backend = new UltraHonkBackend(circuit.bytecode, api)

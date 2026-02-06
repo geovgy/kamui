@@ -1,5 +1,8 @@
 import { useContext } from "react"
 import { ZKProverContext } from "../context/zk-prover"
+import { useMutation } from "@tanstack/react-query"
+import { InputMap } from "@noir-lang/noir_js"
+import { CircuitType, ZKProver } from "@/src/zk-prover"
 
 export const useZKProverContext = () => {
   const context = useContext(ZKProverContext)
@@ -9,12 +12,12 @@ export const useZKProverContext = () => {
   return context
 }
 
-export const useRagequitProver = () => {
-  const { ragequitProver } = useZKProverContext()
-  return ragequitProver
-}
+export function useProve(circuitType: CircuitType) {
+  const prover = new ZKProver(circuitType)
 
-export const useUTXOProver = () => {
-  const { utxoProver } = useZKProverContext()
-  return utxoProver
+  return useMutation({
+    mutationFn: async (inputs: InputMap) => {
+      return await prover.prove(inputs)
+    }
+  })
 }
