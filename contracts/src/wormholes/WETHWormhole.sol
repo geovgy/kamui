@@ -8,12 +8,20 @@ import {Wormhole} from "../Wormhole.sol";
 contract WETHWormhole is ERC20, Wormhole {
     uint256 private _supply;
 
-    event  Deposit(address indexed to, uint256 amount);
-    event  Withdrawal(address indexed from, uint256 amount);
+    event Deposit(address indexed to, uint256 amount);
+    event Withdrawal(address indexed from, uint256 amount);
 
     error WithdrawalFailed();
 
     constructor(IKamui kamui_) ERC20("Wormhole Wrapped Ether", "whWETH") Wormhole(kamui_) {}
+
+    function name() public pure override returns (string memory) {
+        return "Wormhole Wrapped Ether";
+    }
+
+    function symbol() public pure override returns (string memory) {
+        return "whWETH";
+    }
 
     receive() external payable {
         deposit();

@@ -23,33 +23,43 @@ export function AssetsTable() {
   const { data: { wormholeAssets } = { wormholeAssets: [] } } = useWormholeAssets();
 
   const { data: metadatas } = useReadContracts({
-    contracts: wormholeAssets.map((asset) => ({
-      address: getAddress(asset.asset),
-      abi: erc20Abi,
-      functionName: "symbol",
-    })),
+    contracts: wormholeAssets.map((asset) => [
+      {
+        address: getAddress(asset.asset),
+        abi: erc20Abi,
+        functionName: "name",
+      },
+      {
+        address: getAddress(asset.asset),
+        abi: erc20Abi,
+        functionName: "symbol",
+      },
+      {
+        address: getAddress(asset.asset),
+        abi: erc20Abi,
+        functionName: "decimals",
+      },
+      {
+        address: getAddress(asset.asset),
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [address],
+      }
+    ]).flat(),
   });
-
-  const { data: balances } = useReadContracts({
-    contracts: wormholeAssets.map((asset) => ({
-      address: getAddress(asset.asset),
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [address],
-    })),
-  })
 
   const tokens = useMemo(() => {
     return wormholeAssets.map((asset, index) => ({
       ...asset,
-      name: metadatas?.[index]?.result as string ?? "TBD",
-      symbol: metadatas?.[index]?.result as string ?? "TBD",
+      name: metadatas?.[index * 4]?.result as string ?? "TBD",
+      symbol: metadatas?.[index * 4 + 1]?.result as string ?? "TBD",
+      decimals: metadatas?.[index * 4 + 2]?.result as number ?? 18,
       accountBalance: {
-        public: balances?.[index]?.result as bigint ?? 0n,
+        public: metadatas?.[index * 4 + 3]?.result as bigint ?? 0n,
         private: 0n,
       },
     }));
-  }, [wormholeAssets, metadatas, balances]);
+  }, [wormholeAssets, metadatas]);
 
   return (
     <Table>
@@ -73,7 +83,7 @@ export function AssetsTable() {
             <TableCell className="text-center">{formatUnits(asset.accountBalance.private, 18)} {asset.symbol}</TableCell>
             <TableCell className="text-right">
               <AssetDialog
-                asset={{ name: asset.name, symbol: asset.symbol, accountBalance: asset.accountBalance, address: asset.asset, implementation: asset.implementation.address }}
+                asset={{ name: asset.name, symbol: asset.symbol, decimals: asset.decimals, accountBalance: asset.accountBalance, address: asset.asset, implementation: asset.implementation.address }}
                 trigger={
                   <Button variant="outline" className="rounded-full mr-2">
                     Manage

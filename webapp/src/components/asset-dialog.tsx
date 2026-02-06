@@ -19,6 +19,7 @@ interface AssetDialogProps {
   asset: {
     name: string;
     symbol: string;
+    decimals: number;
     accountBalance: {
       public: bigint;
       private: bigint;
@@ -30,7 +31,7 @@ interface AssetDialogProps {
 }
 
 export function AssetDialog({ asset, trigger }: AssetDialogProps) {
-  let underlyingAsset: { name: string; symbol: string; accountBalance: bigint; address: Address } = { name: "ETH", symbol: "ETH", accountBalance: 0n, address: "0x0000000000000000000000000000000000000000" as Address };
+  let underlyingAsset: { name: string; symbol: string; decimals: number; accountBalance: bigint; address: Address } = { name: "ETH", symbol: "ETH", decimals: 18, accountBalance: 0n, address: "0x0000000000000000000000000000000000000000" as Address };
   
   const { address } = useConnection();
   const ethBalance = useBalance({ address })
@@ -58,7 +59,7 @@ export function AssetDialog({ asset, trigger }: AssetDialogProps) {
             <DialogHeader className="mb-4">
               <DialogTitle>Withdraw / Unwrap</DialogTitle>
             </DialogHeader>
-            <UnwrapInnerDialogContent wormholeAsset={asset} underlyingAsset={underlyingAsset} />
+            <UnwrapInnerDialogContent implementation={asset.implementation} wormholeAsset={asset} underlyingAsset={underlyingAsset} />
           </TabsContent>
         </Tabs>
       </DialogContent>

@@ -30,10 +30,10 @@ function formatBalance(balance: bigint, decimals = 18): string {
 }
 
 // UI to wrap/unwrap the underlying asset of wormhole assets
-export function WrapInnerDialogContent({ wormholeAsset, underlyingAsset }: {
+export function WrapInnerDialogContent({ implementation, wormholeAsset, underlyingAsset }: {
   implementation: Address;
-  wormholeAsset: { name: string; symbol: string; accountBalance: { public: bigint; private: bigint }; address: Address }, // TODO: change to token address, implementation address/type, 
-  underlyingAsset: { name: string; symbol: string; accountBalance: bigint; address: Address } // TODO: change to token address
+  wormholeAsset: { name: string; symbol: string; decimals: number; accountBalance: { public: bigint; private: bigint }; address: Address }, // TODO: change to token address, implementation address/type, 
+  underlyingAsset: { name: string; symbol: string; decimals: number; accountBalance: bigint; address: Address } // TODO: change to token address
 }) {
   const {mutateAsync: writeContractAsync, isPending} = useWriteContract();
   const client = usePublicClient()
@@ -43,7 +43,7 @@ export function WrapInnerDialogContent({ wormholeAsset, underlyingAsset }: {
   const [wormholeTransfer, setWormholeTransfer] = useState(false);
 
   const parsedAmount = useMemo(() => {
-    return parseUnits(amount, 18);
+    return parseUnits(amount, underlyingAsset.decimals);
   }, [amount]);
 
   const inputAmount = useMemo(() => {
@@ -113,12 +113,12 @@ export function WrapInnerDialogContent({ wormholeAsset, underlyingAsset }: {
             </InputGroup>
             <div className="flex justify-end items-center gap-2 px-4 text-xs text-muted-foreground">
               <Button variant="link" size="xs" onClick={() => {
-                setAmount(formatUnits(underlyingAsset.accountBalance, 18));
+                setAmount(formatUnits(underlyingAsset.accountBalance, underlyingAsset.decimals));
                 setAmountRequestType("exact-input");
               }}>
                 Max
               </Button>
-              <span>Balance: {formatBalance(underlyingAsset.accountBalance)} {underlyingAsset.symbol}</span>
+              <span>Balance: {formatBalance(underlyingAsset.accountBalance, underlyingAsset.decimals)} {underlyingAsset.symbol}</span>
             </div>
           </div>
 
@@ -142,7 +142,7 @@ export function WrapInnerDialogContent({ wormholeAsset, underlyingAsset }: {
               </InputGroupAddon>
             </InputGroup>
             <div className="flex justify-end px-4 text-xs text-muted-foreground">
-              Balance: {formatBalance(wormholeAsset.accountBalance.public)} {wormholeAsset.symbol}
+              Balance: {formatBalance(wormholeAsset.accountBalance.public, wormholeAsset.decimals)} {wormholeAsset.symbol}
             </div>
           </div>
 

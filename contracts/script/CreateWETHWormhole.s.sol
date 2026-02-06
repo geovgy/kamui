@@ -14,20 +14,34 @@ import {WETHWormhole} from "../src/wormholes/WETHWormhole.sol";
 import {ERC20Wormhole} from "../src/wormholes/ERC20Wormhole.sol";
 import {ERC4626Wormhole} from "../src/wormholes/ERC4626Wormhole.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import {IERC20Metadata} from "openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract CreateWETHWormholeScript is Script {
     Kamui kamui = Kamui(vm.envAddress("KAMUI"));
     WETHWormhole wethImplementation = WETHWormhole(payable(vm.envAddress("WETHWORMHOLE")));
 
+    WETHWormhole newWethImplementation;
+
     function run() public {
         vm.startBroadcast();
 
         console.log("Using Kamui -->", address(kamui));
-        console.log("Using WETHWormhole -->", address(wethImplementation));
+        console.log("Replacing WETHWormhole -->", address(wethImplementation));
+        newWethImplementation = new WETHWormhole(kamui);
+        console.log("|-- New WETHWormhole -->", address(newWethImplementation));
+
+        console.log("\nSetting wormhole asset implementation:");
+        kamui.setWormholeAssetImplementation(address(wethImplementation), false);
+        console.log("|-- Removed Old WETHWormhole -->", address(wethImplementation));
+        kamui.setWormholeAssetImplementation(address(newWethImplementation), true);
+        console.log("|-- Added New WETHWormhole -->", address(newWethImplementation));
 
         console.log("\nLaunching WETH Wormhole Asset:");
-        address asset = kamui.createWormholeAsset(address(wethImplementation), bytes(""));
+        address asset = kamui.createWormholeAsset(address(newWethImplementation), bytes(""));
         console.log("|-- WETH Wormhole Asset -->", asset);
+
+        console.log("    |-- name -->", IERC20Metadata(asset).name());
+        console.log("    |-- symbol -->", IERC20Metadata(asset).symbol());
 
         vm.stopBroadcast();
     }
