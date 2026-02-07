@@ -1,5 +1,85 @@
 import { Address, Hex, numberToHex } from "viem";
 import { subgraphQuery } from "./subgraph";
+import { getMerkleTree } from "./merkle";
+
+export async function getMerkleTrees({wormholeTreeId, shieldedTreeId}: {wormholeTreeId: bigint, shieldedTreeId: bigint}) {
+  const commitments = await queryCommitments({ wormholeTreeId, shieldedTreeId });
+  const wormholeLeaves = commitments.wormholeCommitments.map(commitment => BigInt(commitment.commitment))
+  const shieldedLeaves = commitments.shieldedTransfers.map(transfer => transfer.commitments.map(commitment => BigInt(commitment))).flat()
+  const wormholeTree = getMerkleTree(wormholeLeaves.map(leaf => BigInt(leaf)));
+  const shieldedTree = getMerkleTree(shieldedLeaves.map(leaf => BigInt(leaf)));
+  return { wormholeTree, shieldedTree };
+}
+
+export async function queryCommitments(args: {
+  wormholeTreeId: bigint,
+  shieldedTreeId: bigint,
+}): Promise<{
+  wormholeCommitments: {
+    treeId: bigint;
+    commitment: bigint;
+    leafIndex: bigint;
+    approved: boolean;
+    entry: {
+      entryId: bigint;
+    }
+  }[]
+  shieldedTransfers: {
+    treeId: bigint;
+    startIndex: bigint;
+    commitments: bigint[];
+  }[]
+}> {
+  const query = 
+  `
+    query Commitments($wormholeTreeId: BigInt!, $shieldedTreeId: BigInt!) {
+      wormholeCommitments(
+        where: {
+          treeId: $wormholeTreeId
+        }
+        orderBy: leafIndex
+        orderDirection: asc
+        first: 1000
+      ) {
+        treeId
+        commitment
+        leafIndex
+        approved
+        entry {
+          entryId
+        }
+      }
+      shieldedTransfers(
+        where: {
+          treeId: $shieldedTreeId
+        }
+        orderBy: startIndex
+        orderDirection: asc
+        first: 1000
+      ) {
+        treeId
+        startIndex
+        commitments
+      }
+    }
+  `;
+  return subgraphQuery<{
+    wormholeCommitments: {
+      treeId: bigint;
+      commitment: bigint;
+      leafIndex: bigint;
+      approved: boolean;
+      entry: {
+        entryId: bigint;
+      }
+    }[]
+    shieldedTransfers: {
+      treeId: bigint;
+      startIndex: bigint;
+      commitments: bigint[];
+    }[]
+  }>(query, { wormholeTreeId: args.wormholeTreeId.toString(), shieldedTreeId: args.shieldedTreeId.toString() });
+}
 
 export async function queryTrees(args: {
   wormholeTreeId: number,
@@ -20,11 +100,12 @@ export async function queryTrees(args: {
     updatedAt: number;
   } | null
 }> {
-  const wormholeTreeId = numberToHex(args.wormholeTreeId)
-  const shieldedTreeId = numberToHex(args.shieldedTreeId)
+  const wormholeTreeId = numberToHex(args.wormholeTreeId, { size: 4 })
+  const shieldedTreeId = numberToHex(args.shieldedTreeId, { size: 4 })
+  console.log({ wormholeTreeId, shieldedTreeId });
   const query = 
   `
-    query Trees($wormholeTreeIds: Bytes!, $shieldedTreeIds: Bytes!) {
+    query Trees($wormholeTreeId: Bytes!, $shieldedTreeId: Bytes!) {
       wormholeTree(id: $wormholeTreeId) {
         id
         leaves
@@ -190,7 +271,7 @@ export async function queryWormholeEntriesByEntryIds(args?: {
 }) {
   const { entryIds, orderDirection } = args ?? {};
   const variables = {
-    entryIds: entryIds,
+    entryIds: entryIds?.map(id => id.toString()),
     orderBy: "blockTimestamp",
     orderDirection: orderDirection,
   };

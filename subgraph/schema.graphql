@@ -50,6 +50,7 @@ type Ragequit @entity(immutable: true) {
 
 type ShieldedTree @entity(immutable: false) {
   id: Bytes! # treeId
+	treeId: BigInt! # uint256
   leaves: [BigInt!]! # uint256[]
   size: BigInt! # uint256
   createdAt: BigInt! # uint256
@@ -58,6 +59,7 @@ type ShieldedTree @entity(immutable: false) {
 
 type WormholeTree @entity(immutable: false) {
   id: Bytes! # treeId
+  treeId: BigInt! # uint256
   leaves: [BigInt!]! # uint256[]
   commitments: [WormholeCommitment!]! # WormholeCommitment[]
   size: BigInt! # uint256
@@ -136,7 +138,7 @@ type WormholeEntry @entity(immutable: false) {
   tokenId: BigInt! # uint256
   amount: BigInt! # uint256
   commitment: WormholeCommitment @derivedFrom(field: "entry") # if undefined, the entry is not appended to the wormhole tree yet
-	submitted: Boolean! # bool
+  submitted: Boolean! # bool
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!

@@ -2,6 +2,7 @@ import { Address, bytesToBigInt, isAddressEqual } from "viem"
 import { NoteDB } from "@/src/storage/notes-db"
 import { NoteDBShieldedEntry, NoteDBWormholeEntry, OutputNote, TransferType } from "@/src/types"
 import { randomBytes } from "@aztec/bb.js";
+import { getRandomBlinding } from "../joinsplits";
 
 export function createShieldedTransferOutputNotes(args: {
   sender: Address,
@@ -24,8 +25,8 @@ export function createShieldedTransferOutputNotes(args: {
   }
 
   return [
-    { recipient: sender, blinding: bytesToBigInt(randomBytes(32)), amount: totalAmountIn - amount, transfer_type: TransferType.TRANSFER },
-    { recipient: receiver, blinding: bytesToBigInt(randomBytes(32)), amount, transfer_type: transferType },
+    { recipient: sender, blinding: getRandomBlinding(), amount: totalAmountIn - amount, transfer_type: TransferType.TRANSFER },
+    { recipient: receiver, blinding: getRandomBlinding(), amount, transfer_type: transferType },
   ]
 }
 

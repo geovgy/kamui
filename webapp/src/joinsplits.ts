@@ -1,6 +1,12 @@
+import { randomBytes } from "@aztec/bb.js";
 import { TransferType, type InputNote, type OutputNote, type WormholeNote } from "./types";
 import { poseidon2Hash } from "@zkpassport/poseidon2";
-import { bytesToHex, stringToHex, toBytes, toHex, type Address } from "viem";
+import { bytesToBigInt, bytesToHex, stringToHex, toBytes, toHex, type Address } from "viem";
+import { SNARK_SCALAR_FIELD } from "./constants";
+
+export function getRandomBlinding(): bigint {
+  return bytesToBigInt(randomBytes(32)) % SNARK_SCALAR_FIELD;
+}
 
 export function getAssetId(token: Address, tokenId?: bigint): bigint {
   return poseidon2Hash([BigInt(token), BigInt(tokenId ?? 0)]);

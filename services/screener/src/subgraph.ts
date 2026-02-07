@@ -1,3 +1,4 @@
+import type { Address } from "viem";
 import { SUBGRAPH_URL } from "./env";
 
 export async function subgraphQuery<T>(queryString: string, variables: Record<string, unknown>): Promise<T> {
@@ -27,7 +28,7 @@ export async function queryPendingWormholeEntries() {
         orderDirection: $orderDirection,
         first: $first,
       ) {
-        id
+        entryId
         from
         to
         token
@@ -39,13 +40,13 @@ export async function queryPendingWormholeEntries() {
   `;
   return subgraphQuery<{
     wormholeEntries: {
-      id: string;
-      from: string;
-      to: string;
-      token: string;
-      tokenId: string;
-      amount: string;
-      blockTimestamp: string;
+      entryId: bigint;
+      from: Address;
+      to: Address;
+      token: Address;
+      tokenId: bigint;
+      amount: bigint;
+      blockTimestamp: bigint;
     }[]
   }>(query, {
     orderBy: "blockTimestamp",

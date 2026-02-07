@@ -32,3 +32,32 @@ export function useWormholeNotes(params?: {
     enabled: !!shieldedPool,
   });
 }
+
+export function useShieldedBalance(args: { token: Address, tokenId?: bigint, excludeWormholes?: boolean }) {
+  const { data: shieldedPool } = useShieldedPool();
+  return useQuery({
+    queryKey: ["shieldedBalance", shieldedPool?.account, args],
+    queryFn: async () => {
+      if (!shieldedPool) return 0n;
+      return await shieldedPool.getShieldedBalance(args);
+    },
+    enabled: !!shieldedPool,
+  });
+}
+
+export function useShieldedBalances(args: { tokens: Address[] | { token: Address, tokenId?: bigint }[], excludeWormholes?: boolean }) {
+  const { data: shieldedPool } = useShieldedPool();
+  return useQuery({
+    queryKey: ["shieldedBalances", shieldedPool?.account, args],
+    queryFn: async () => {
+      if (!shieldedPool) return [];
+      return await Promise.all(args.tokens.map(token => {
+        if (typeof token === "string") {
+          return shieldedPool.getShieldedBalance({ token, excludeWormholes: args.excludeWormholes });
+        }
+        return shieldedPool.getShieldedBalance({ token: token.token, tokenId: token.tokenId, excludeWormholes: args.excludeWormholes });
+      }));
+    },
+    enabled: !!shieldedPool,
+  });
+}

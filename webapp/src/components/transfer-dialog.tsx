@@ -26,13 +26,14 @@ import { getMerkleTree } from "@/src/merkle";
 import { MERKLE_TREE_DEPTH } from "@/src/constants";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useConfig as useWagmiConfig } from "wagmi";
+import { useSignTypedData, useConfig as useWagmiConfig } from "wagmi";
 import { Address, createPublicClient, erc20Abi, formatUnits, getAddress, http, isAddress, parseUnits } from "viem";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { mainnet } from "viem/chains";
 import { useShieldedPool } from "../hooks/use-shieldedpool";
 import { useQuery } from "@tanstack/react-query";
 import { getEnsAddress, getEnsName } from "viem/actions";
+import { KAMUI_CONTRACT_ADDRESS } from "@/src/env"
 
 type BalanceSource = "private" | "public";
 
@@ -50,10 +51,11 @@ function formatAddress(address: Address) {
 
 export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalances }: { trigger: React.ReactNode, wormholeAsset: WormholeAsset, balances: BalanceInfo, refetchBalances: () => void }) {
   const { publicBalance, privateBalance } = balances;
-  const { mutateAsync: prove } = useProve("ragequit");
+  const { mutateAsync: prove } = useProve("utxo_2x2");
 
   const wagmiConfig = useWagmiConfig();
   const { data: shieldedPool } = useShieldedPool();
+  const { mutateAsync: signTypedData } = useSignTypedData();
   
   const [isProving, setIsProving] = useState(false);
   const [recipientInput, setRecipientInput] = useState<string>("");
@@ -243,8 +245,77 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
     setStatus(undefined);
   }
   // TODO: Implement shielded transaction
-  async function handleShieldedTransaction() {
-    throw new Error("Not implemented");
+  async function handleShieldedTransaction(unshield?: boolean) {
+    try {
+      if (!recipient?.address) {
+        throw new Error("Invalid recipient address");
+      }
+      const client = wagmiConfig.getClient();
+      if (!client) {
+        throw new Error("Client not found");
+      }
+      if (!shieldedPool) {
+        throw new Error("Shielded pool not found");
+      }
+
+      // Sign EIP-712 message
+      // Format public inputs
+      setStatus("signing");
+      const { circuitInputs, entries, outputNotes } = await shieldedPool.signShieldedTransfer(wagmiConfig, {
+        chainId: client.chain.id,
+        receiver: recipient.address,
+        token: wormholeAsset.address,
+        tokenId: 0n,
+        amount: parsedAmount,
+        unshield,
+      });
+      
+      // Generate UTXO proof
+      console.log("Proving...");
+      const proofData = await prove(circuitInputs);
+      console.log("Proof data:", proofData);
+      
+      // Call relayer to execute transaction
+      const response = await fetch("/api/shielded-relay", {
+        method: "POST",
+        body: JSON.stringify({ shieldedTx: circuitInputs, proofData }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to relay shielded transfer");
+      }
+      const { hash, error } = await response.json() as { hash: `0x${string}`, error?: string };
+      if (error) {
+        throw new Error(error);
+      } 
+
+      // Wait for transaction to be confirmed
+      setStatus("confirming");
+      toast.info(`Waiting for transaction to be confirmed...`);
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
+      
+      // Update notes and balances
+      if (receipt.status === "success") {
+        const result = await shieldedPool.parseAndSaveShieldedTransfer({
+          chainId: client.chain.id,
+          token: wormholeAsset.address,
+          tokenId: 0n,
+          receipt,
+          entries,
+          outputNotes,
+        });
+        toast.success(`Shielded transfer confirmed!`);
+        setStatus("success");
+        refetchBalances();
+      } else {
+        setStatus("error");
+        toast.error("Transaction failed");
+      }
+    } catch (error) {
+      console.error(error);
+      setStatus("error");
+      toast.error("Transaction failed");
+    }
+    setStatus(undefined);
   }
 
   // DELETE: This is just a test

@@ -17,11 +17,14 @@ import { useConnection, useReadContracts } from "wagmi";
 import { Abi, Address, erc20Abi, erc4626Abi, formatUnits, getAddress, isAddressEqual, parseAbi } from "viem";
 import { useMemo } from "react";
 import { WORMHOLE_ASSET_ERC20_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_ERC4626_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_WETH_IMPLEMENTATION_ADDRESS } from "../env";
+import { useShieldedBalances } from "../hooks/use-shieldedpool";
 
 export function AssetsTable() {
   const { address } = useConnection();
 
   const { data: { wormholeAssets } = { wormholeAssets: [] } } = useWormholeAssets();
+
+  const { data: shieldedBalances, refetch: refetchShieldedBalances } = useShieldedBalances({ tokens: wormholeAssets.map((asset) => asset.asset), excludeWormholes: false });
 
   const { data: metadatas, refetch } = useReadContracts({
     query: {
@@ -73,7 +76,7 @@ export function AssetsTable() {
 
   const tokens = useMemo(() => {
     let offset = 0;
-    return wormholeAssets.map((asset) => {
+    return wormholeAssets.map((asset, i) => {
       const startIndex = offset;
       const implementationType = getImplementationType(asset.implementation.address)!;
       if (implementationType !== "WETH") {
@@ -94,7 +97,7 @@ export function AssetsTable() {
         },
         wormholeBalances: {
           publicBalance: metadatas?.[startIndex + 3] as bigint ?? 0n,
-          privateBalance: 0n,
+          privateBalance: shieldedBalances?.[i] as bigint ?? 0n,
         },
         underlying: implementationType !== "WETH" ? metadatas?.[startIndex + 4] as Address : undefined,
         implementationType,
@@ -135,7 +138,10 @@ export function AssetsTable() {
                 implementationType={asset.implementationType}
                 wormholeAsset={asset.metadata}
                 underlying={asset.underlying}
-                refreshBalance={refetch}
+                refreshBalance={() => {
+                  refetch();
+                  refetchShieldedBalances();
+                }}
                 trigger={
                   <Button variant="outline" className="rounded-full mr-2">
                     Manage
@@ -145,7 +151,10 @@ export function AssetsTable() {
               <TransferDialog
                 wormholeAsset={asset.metadata}
                 balances={asset.wormholeBalances}
-                refetchBalances={refetch}
+                refetchBalances={() => {
+                  refetch();
+                  refetchShieldedBalances();
+                }}
                 trigger={
                   <Button variant="outline" className="rounded-full">
                     Send

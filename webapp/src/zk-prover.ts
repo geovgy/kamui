@@ -71,3 +71,14 @@ export class ZKProver {
     return await this.backend.getSolidityVerifier(vk, options)
   }
 }
+
+export function extractUTXOPublicInputs(result: string[], inputLength: number, outputLength: number) {
+  return {
+    hashedMessage: result[0]!,
+    shieldedRoot: result[1]!,
+    wormholeRoot: result[2]!,
+    wormholeNullifier: result[3]!,
+    inputNullifiers: result.slice(4, 4 + inputLength),
+    outputCommitments: result.slice(4 + inputLength, 4 + inputLength + outputLength),
+  }
+}

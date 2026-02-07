@@ -34,5 +34,6 @@ export function useWormholeEntriesByEntryIds(args: {
   return useQuery({
     queryKey: ["wormholeEntriesByEntryIds", { ...args, entryIds: args.entryIds.map(id => id.toString()) }],
     queryFn: () => queryWormholeEntriesByEntryIds(args),
+    enabled: args.entryIds.length > 0,
   });
 }

@@ -1,3 +1,3 @@
-import { foundry } from "viem/chains";
+import { sepolia } from "viem/chains";
 
-export const CHAIN = foundry;
+export const CHAIN = sepolia;

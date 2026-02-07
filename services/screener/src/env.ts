@@ -6,6 +6,12 @@ export const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS!;
 
 export const PRIVATE_KEY = process.env.PRIVATE_KEY!;
 
+export const CHAIN_RPC_URL = process.env.CHAIN_RPC_URL!;
+
+if (!CHAIN_RPC_URL) {
+  throw new Error("CHAIN_RPC_URL must be set");
+}
+
 if (!SUBGRAPH_URL) {
   throw new Error("SUBGRAPH_URL must be set");
 }

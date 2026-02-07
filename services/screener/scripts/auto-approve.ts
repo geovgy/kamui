@@ -2,8 +2,9 @@ import { createWalletClient, getAddress, http, publicActions } from "viem";
 import { queryPendingWormholeEntries } from "../src/subgraph";
 import { CHAIN } from "../src/configs";
 import { privateKeyToAccount } from "viem/accounts";
-import { CONTRACT_ADDRESS, PRIVATE_KEY } from "../src/env";
+import { CHAIN_RPC_URL, CONTRACT_ADDRESS, PRIVATE_KEY } from "../src/env";
 import KamuiABI from "../../../contracts/out/Kamui.sol/Kamui.json";
+import LeanIMTAbi from "../../../contracts/out/LeanIMT.sol/LeanIMT.json";
 
 async function main() {
   console.log("\nQuerying pending wormhole entries...");
@@ -21,21 +22,27 @@ async function main() {
   console.log("\nApproving all pending wormhole entries...");
 
   const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
-  
+
+  console.log(`\nUsing account: ${account.address}`);
+
   const client = createWalletClient({
     account,
     chain: CHAIN,
-    transport: http(CHAIN.rpcUrls.default.http[0]),
+    transport: http(CHAIN_RPC_URL),
   }).extend(publicActions);
 
-  const approvals = wormholeEntries.map((entry) => ({
-    entryId: BigInt(entry.id),
+  console.log("\nApproving entries...");
+
+  const approvals = wormholeEntries.slice(1).map((entry) => ({
+    entryId: entry.entryId,
     approved: true,
   }));
 
+  console.log(`\nSubmitting onchain...`);
+
   const hash = await client.writeContract({
     address: getAddress(CONTRACT_ADDRESS),
-    abi: KamuiABI.abi,
+    abi: [...KamuiABI.abi, ...LeanIMTAbi.abi],
     functionName: "appendManyWormholeLeaves",
     args: [approvals],
   });

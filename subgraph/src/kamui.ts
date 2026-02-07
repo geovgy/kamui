@@ -147,10 +147,12 @@ export function handleShieldedTransfer(event: ShieldedTransferEvent): void {
 
   // append to shielded tree
   let tree = _loadOrCreateShieldedTree(event.params.treeId, event.block.timestamp)
+  let shieldedLeaves = tree.leaves
   for (let i = 0; i < event.params.commitments.length; i++) {
-    tree.leaves.push(event.params.commitments[i])
+    shieldedLeaves.push(event.params.commitments[i])
   }
-  tree.size = BigInt.fromI32(tree.leaves.length)
+  tree.leaves = shieldedLeaves
+  tree.size = BigInt.fromI32(shieldedLeaves.length)
   tree.updatedAt = event.block.timestamp
   tree.save()
 }
@@ -160,6 +162,7 @@ function _loadOrCreateShieldedTree(treeId: BigInt, timestamp: BigInt): ShieldedT
   let entity = ShieldedTree.load(id)
   if (entity == null) {
     entity = new ShieldedTree(id)
+    entity.treeId = treeId
     entity.leaves = []
     entity.size = BigInt.zero()
     entity.createdAt = timestamp
@@ -224,9 +227,13 @@ export function handleWormholeCommitment(event: WormholeCommitmentEvent): void {
 
   // append to wormhole tree
   let tree = _loadOrCreateWormholeTree(event.params.treeId, event.block.timestamp)
-  tree.commitments.push(entity.id)
-  tree.leaves.push(event.params.commitment)
-  tree.size = BigInt.fromI32(tree.leaves.length)
+  let commitments = tree.commitments
+  commitments.push(entity.id)
+  tree.commitments = commitments
+  let wormholeLeaves = tree.leaves
+  wormholeLeaves.push(event.params.commitment)
+  tree.leaves = wormholeLeaves
+  tree.size = BigInt.fromI32(wormholeLeaves.length)
   tree.updatedAt = event.block.timestamp
   tree.save()
 }
@@ -236,7 +243,9 @@ function _loadOrCreateWormholeTree(treeId: BigInt, timestamp: BigInt): WormholeT
   let entity = WormholeTree.load(id)
   if (entity == null) {
     entity = new WormholeTree(id)
+    entity.treeId = treeId
     entity.leaves = []
+    entity.commitments = []
     entity.size = BigInt.zero()
     entity.createdAt = timestamp
     entity.updatedAt = timestamp
