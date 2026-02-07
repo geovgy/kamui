@@ -4,19 +4,19 @@ import { getCommitment, getNullifier, getWormholeBurnCommitment, getWormholeNull
 import { Prover } from "../src/prover";
 import { privateKeyToAccount } from "viem/accounts";
 import { TransferType, type InputNote, type OutputNote, type WormholeNote } from "../src/types";
-import { BN254_PRIME } from "../src/constants";
 import { hashMessage, hexToBytes, recoverPublicKey, toHex } from "viem";
 
 const MERKLE_TREE_DEPTH = 20
 
 function extractPublicInputs(result: string[], inputLength: number, outputLength: number) {
   return {
-    hashedMessage: result[0]!,
-    shieldedRoot: result[1]!,
-    wormholeRoot: result[2]!,
-    wormholeNullifier: result[3]!,
-    inputNullifiers: result.slice(4, 4 + inputLength),
-    outputCommitments: result.slice(4 + inputLength, 4 + inputLength + outputLength),
+    shieldedRoot: result[0]!,
+    wormholeRoot: result[1]!,
+    hashedMessageHi: result[2]!,
+    hashedMessageLo: result[3]!,
+    wormholeNullifier: result[4]!,
+    inputNullifiers: result.slice(5, 5 + inputLength),
+    outputCommitments: result.slice(5 + inputLength, 5 + inputLength + outputLength),
   }
 }
 
@@ -51,7 +51,7 @@ describe("utxo", () => {
       { recipient: account.address, blinding: 222222222n, amount: BigInt(50e18), transfer_type: TransferType.TRANSFER },
     ]
 
-    const messageHash = toHex(BigInt(hashMessage("This is a fake EIP712 message hash for testing purposes")) % BN254_PRIME, { size: 32 })
+    const messageHash = hashMessage("This is a fake EIP712 message hash for testing purposes")
     const signature = await account.sign({ hash: messageHash })
     const publicKey = await recoverPublicKey({hash: messageHash, signature})
 
@@ -61,7 +61,7 @@ describe("utxo", () => {
       pub_key_x: [...hexToBytes(publicKey).slice(1, 33)],
       pub_key_y: [...hexToBytes(publicKey).slice(33, 65)],
       signature: [...hexToBytes(signature).slice(0, 64)], // Remove recovery byte (v)
-      hashed_message: messageHash,
+      hashed_message: [...hexToBytes(messageHash)],
       shielded_root: utxoTree.root.toString(),
       wormhole_root: "0x0000000000000000000000000000000000000000000000000000000000000000",
       asset_id: assetId.toString(),
@@ -109,9 +109,15 @@ describe("utxo", () => {
     const expectedWormholeNullifier = getWormholePseudoNullifier(account.address, assetId, wormholePseudoSecret)
     const expectedNullifiers = inputNotes.map(note => getNullifier(account.address, assetId, note))
     const expectedCommitments = outputNotes.map(note => getCommitment(assetId, note))
+    const expectedHashedMessageOutputs = {
+      hi: BigInt("0x" + messageHash.slice(2, 34)),
+      lo: BigInt("0x" + messageHash.slice(34, 66)),
+    }
 
     const actual = extractPublicInputs(result.publicInputs, inputNotes.length, outputNotes.length)
-    expect(actual.hashedMessage, "hashed message public input mismatch").toBe(messageHash)
+
+    expect(actual.hashedMessageHi, "hashed message hi public input mismatch").toBe(toHex(expectedHashedMessageOutputs.hi, { size: 32 }))
+    expect(actual.hashedMessageLo, "hashed message lo public input mismatch").toBe(toHex(expectedHashedMessageOutputs.lo, { size: 32 }))
     expect(actual.shieldedRoot, "shielded root public input mismatch").toBe(toHex(utxoTree.root, { size: 32 }))
     expect(actual.wormholeRoot, "wormhole root public input mismatch").toBe(toHex(0n, { size: 32 }))
     expect(actual.wormholeNullifier, "wormhole nullifier public input mismatch").toBe(toHex(expectedWormholeNullifier, { size: 32 }))
@@ -173,7 +179,7 @@ describe("utxo", () => {
       { recipient: account.address, blinding: 222222222n, amount: BigInt(50e18), transfer_type: TransferType.TRANSFER },
     ]
 
-    const messageHash = toHex(BigInt(hashMessage("This is a fake EIP712 message hash for testing purposes")) % BN254_PRIME, { size: 32 })
+    const messageHash = hashMessage("This is a fake EIP712 message hash for testing purposes")
     const signature = await account.sign({ hash: messageHash })
     const publicKey = await recoverPublicKey({hash: messageHash, signature})
 
@@ -181,7 +187,7 @@ describe("utxo", () => {
       pub_key_x: [...hexToBytes(publicKey).slice(1, 33)],
       pub_key_y: [...hexToBytes(publicKey).slice(33, 65)],
       signature: [...hexToBytes(signature).slice(0, 64)], // Remove recovery byte (v)
-      hashed_message: messageHash,
+      hashed_message: [...hexToBytes(messageHash)],
       shielded_root: utxoTree.root.toString(),
       wormhole_root: wormholeTree.root.toString(),
       asset_id: assetId.toString(),
@@ -229,11 +235,17 @@ describe("utxo", () => {
     const expectedWormholeNullifier = getWormholeNullifier(wormholeNote)
     const expectedNullifiers = inputNotes.map(note => getNullifier(account.address, assetId, note))
     const expectedCommitments = outputNotes.map(note => getCommitment(assetId, note))
+    const expectedHashedMessageOutputs = {
+      hi: BigInt("0x" + messageHash.slice(2, 34)),
+      lo: BigInt("0x" + messageHash.slice(34, 66)),
+    }
 
     const actual = extractPublicInputs(result.publicInputs, inputNotes.length, outputNotes.length)
-    expect(actual.hashedMessage, "hashed message public input mismatch").toBe(messageHash)
+
     expect(actual.shieldedRoot, "shielded root public input mismatch").toBe(toHex(utxoTree.root, { size: 32 }))
     expect(actual.wormholeRoot, "wormhole root public input mismatch").toBe(toHex(wormholeTree.root, { size: 32 }))
+    expect(actual.hashedMessageHi, "hashed message hi public input mismatch").toBe(toHex(expectedHashedMessageOutputs.hi, { size: 32 }))
+    expect(actual.hashedMessageLo, "hashed message lo public input mismatch").toBe(toHex(expectedHashedMessageOutputs.lo, { size: 32 }))
     expect(actual.wormholeNullifier, "wormhole nullifier public input mismatch").toBe(toHex(expectedWormholeNullifier, { size: 32 }))
     expect(actual.inputNullifiers, "input nullifiers public input mismatch").toEqual(expectedNullifiers.map(nullifier => toHex(nullifier, { size: 32 })))
     expect(actual.outputCommitments, "output commitments public input mismatch").toEqual(expectedCommitments.map(commitment => toHex(commitment, { size: 32 })))

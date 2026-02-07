@@ -5,7 +5,7 @@ fn main(
     pub_key_x: [u8; 32],
     pub_key_y: [u8; 32],
     signature: [u8; 64],
-    hashed_message: pub Field, // EIP-712 message hash % SNARK max field size
+    hashed_message: [u8; 32], // Full 256-bit EIP-712 message hash (private input)
     shielded_root: pub Field,
     wormhole_root: pub Field,
     asset_id: Field,
@@ -17,7 +17,7 @@ fn main(
     wormhole_leaf_siblings: Option<[Field; MERKLE_TREE_DEPTH]>,
     wormhole_approved: Option<bool>,
     wormhole_pseudo_secret: Option<Field>,
-) -> pub (Field, [Field; 2], [Field; 2]) {
+) -> pub (Field, Field, Field, [Field; 2], [Field; 2]) {
     execute_utxo(
         pub_key_x,
         pub_key_y,

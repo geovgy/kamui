@@ -6,7 +6,6 @@ import {LeanIMT, LeanIMTData} from "./libraries/LeanIMT.sol";
 import {IWormhole} from "./interfaces/IWormhole.sol";
 import {IKamui} from "./interfaces/IKamui.sol";
 import {EIP712} from "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
-import {SNARK_SCALAR_FIELD} from "./utils/Constants.sol";
 import {Clones} from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import {IVerifier} from "./interfaces/IVerifier.sol";
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
@@ -229,8 +228,7 @@ contract Kamui is IKamui, EIP712, Ownable {
     }
 
     function shieldedTransfer(ShieldedTx memory shieldedTx, bytes calldata proof) external {
-        // Use modulo to avoid possible bn254 overflow when hashing EIP712 message
-        bytes32 messageHash = bytes32(uint256(_hashTypedData(shieldedTx)) % SNARK_SCALAR_FIELD);
+        bytes32 messageHash = _hashTypedData(shieldedTx);
         
         // Validate roots
         require(isWormholeRoot[shieldedTx.wormholeRoot], "Kamui: wormhole root is not valid");
@@ -306,14 +304,23 @@ contract Kamui is IKamui, EIP712, Ownable {
     }
 
     function _formatPublicInputs(ShieldedTx memory shieldedTx, bytes32 messageHash) internal view returns (bytes32[] memory inputs) {
-        uint256 offset = 4 + shieldedTx.nullifiers.length;
+        // Split 256-bit message hash into two 128-bit halves (matches circuit output)
+        uint256 hashUint = uint256(messageHash);
+        bytes32 messageHashHi = bytes32(hashUint >> 128);
+        bytes32 messageHashLo = bytes32(hashUint & type(uint128).max);
+
+        // Public inputs ordering: pub params first, then return values
+        // Pub params: shielded_root, wormhole_root
+        // Return values: hashed_message_hi, hashed_message_lo, wormhole_nullifier, nullifiers[], commitments[]
+        uint256 offset = 5 + shieldedTx.nullifiers.length;
         inputs = new bytes32[](offset + shieldedTx.commitments.length + shieldedTx.withdrawals.length);
-        inputs[0] = messageHash;
-        inputs[1] = shieldedTx.shieldedRoot;
-        inputs[2] = shieldedTx.wormholeRoot;
-        inputs[3] = shieldedTx.wormholeNullifier;
+        inputs[0] = shieldedTx.shieldedRoot;
+        inputs[1] = shieldedTx.wormholeRoot;
+        inputs[2] = messageHashHi;
+        inputs[3] = messageHashLo;
+        inputs[4] = shieldedTx.wormholeNullifier;
         for (uint256 i; i < shieldedTx.nullifiers.length; i++) {
-            inputs[4 + i] = shieldedTx.nullifiers[i];
+            inputs[5 + i] = shieldedTx.nullifiers[i];
         }
         for (uint256 i; i < shieldedTx.commitments.length; i++) {
             inputs[offset + i] = bytes32(shieldedTx.commitments[i]);

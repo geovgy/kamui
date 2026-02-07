@@ -1,4 +1,4 @@
-import { Abi, Address, bytesToBigInt, erc20Abi, erc721Abi, getAddress, hashTypedData, Hex, hexToBigInt, hexToBytes, isAddressEqual, parseEventLogs, recoverPublicKey, toHex, TransactionReceipt, TypedData } from "viem"
+import { Abi, Address, bytesToBigInt, erc20Abi, erc721Abi, getAddress, hashTypedData, Hex, hexToBytes, isAddressEqual, parseEventLogs, recoverPublicKey, toHex, TransactionReceipt, TypedData } from "viem"
 import { NoteDB } from "@/src/storage/notes-db"
 import { InputNote, NoteDBShieldedEntry, NoteDBWormholeEntry, OutputNote, ShieldedTx, TransferType, Withdrawal, WormholeDeposit } from "@/src/types"
 import { createShieldedTransferOutputNotes, getShieldedTransferInputEntries } from "./utils"
@@ -9,8 +9,7 @@ import { randomBytes } from "@aztec/bb.js"
 import { signTypedData, writeContract } from "wagmi/actions"
 import { Config } from "wagmi"
 import { KAMUI_CONTRACT_ADDRESS } from "../env"
-import { MERKLE_TREE_DEPTH, SNARK_SCALAR_FIELD } from "../constants"
-import { sign } from "viem/accounts"
+import { MERKLE_TREE_DEPTH } from "../constants"
 import { InputMap } from "@noir-lang/noir_js"
 
 const wormholeEntryEventAbi = [{
@@ -387,11 +386,6 @@ export class ShieldedPool {
     }
 
     let messageHash = hashTypedData(typedData as any)
-    if (hexToBigInt(messageHash) > SNARK_SCALAR_FIELD) {
-      // ISSUE: Getting this error consistently when signing shielded transfers
-      // Update circuits to work around it.
-      throw new Error("Message hash is too large");
-    }
     const signature = await signTypedData(config, typedData as any)
     const publicKey = await recoverPublicKey({hash: messageHash, signature})
 
@@ -399,7 +393,7 @@ export class ShieldedPool {
       pub_key_x: [...hexToBytes(publicKey).slice(1, 33)],
       pub_key_y: [...hexToBytes(publicKey).slice(33, 65)],
       signature: [...hexToBytes(signature).slice(0, 64)], // Remove recovery byte (v)
-      hashed_message: messageHash,
+      hashed_message: [...hexToBytes(messageHash)],
       shielded_root: toHex(shieldedTree.root ?? 0n, { size: 32 }),
       wormhole_root: toHex(wormholeTree.root ?? 0n, { size: 32 }),
       asset_id: assetId.toString(),

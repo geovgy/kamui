@@ -8,7 +8,7 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
     pub_key_x: [u8; 32],
     pub_key_y: [u8; 32],
     signature: [u8; 64],
-    hashed_message: Field, // pub - EIP-712 message hash % SNARK max field size
+    hashed_message: [u8; 32], // Full 256-bit EIP-712 message hash
     shielded_root: Field, // pub
     wormhole_root: Field, // pub
     asset_id: Field,
@@ -20,10 +20,18 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
     wormhole_leaf_siblings: Option<[Field; M]>,
     wormhole_approved: Option<bool>,
     wormhole_pseudo_secret: Option<Field>,
-) -> (Field, [Field; N], [Field; C]) {
-    let message: [u8; 32] = hashed_message.to_be_bytes();
-    let address = ecrecover(pub_key_x, pub_key_y, signature, message);
+) -> (Field, Field, Field, [Field; N], [Field; C]) {
+    let address = ecrecover(pub_key_x, pub_key_y, signature, hashed_message);
     assert(address == owner_address, "signer address is not owner address");
+
+    // Split 256-bit hash into two 128-bit halves for public output
+    // Each half fits safely within the BN254 scalar field
+    let mut hashed_message_hi: Field = 0;
+    let mut hashed_message_lo: Field = 0;
+    for i in 0..16 {
+        hashed_message_hi = hashed_message_hi * 256 + hashed_message[i] as Field;
+        hashed_message_lo = hashed_message_lo * 256 + hashed_message[i + 16] as Field;
+    }
 
     let joinsplit = JoinSplit::new(
         shielded_root, 
@@ -38,5 +46,6 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
         wormhole_approved, 
         wormhole_pseudo_secret
     );
-    joinsplit.execute()
+    let (wormhole_nullifier, input_nullifiers, output_commitments) = joinsplit.execute();
+    (hashed_message_hi, hashed_message_lo, wormhole_nullifier, input_nullifiers, output_commitments)
 }
