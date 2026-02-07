@@ -1,4 +1,5 @@
 import { Abi, Address, bytesToBigInt, erc20Abi, erc721Abi, getAddress, hashTypedData, Hex, hexToBytes, isAddressEqual, parseEventLogs, recoverPublicKey, toHex, TransactionReceipt, TypedData } from "viem"
+import { publicKeyToAddress } from "viem/accounts"
 import { NoteDB } from "@/src/storage/notes-db"
 import { InputNote, NoteDBShieldedEntry, NoteDBWormholeEntry, OutputNote, ShieldedTx, TransferType, Withdrawal, WormholeDeposit } from "@/src/types"
 import { createShieldedTransferOutputNotes, getShieldedTransferInputEntries } from "./utils"
@@ -350,8 +351,8 @@ export class ShieldedPool {
       sender: this.account,
       token: args.token,
       tokenId: args.tokenId,
-      shieldedRoot: toHex(shieldedTree.root ?? 0n, { size: 32 }),
-      wormholeRoot: toHex(wormholeTree.root ?? 0n, { size: 32 }),
+      shieldedRoot: shieldedTree.root ?? 0n,
+      wormholeRoot: wormholeTree.root ?? 0n,
       wormholeDeposit,
       inputs: inputNotes,
       outputs: outputNotes,
@@ -385,9 +386,22 @@ export class ShieldedPool {
       primaryType: "ShieldedTx",
     }
 
-    let messageHash = hashTypedData(typedData as any)
     const signature = await signTypedData(config, typedData as any)
+    let messageHash = hashTypedData(typedData as any)
     const publicKey = await recoverPublicKey({hash: messageHash, signature})
+
+    // Verify the recovered address matches the expected signer
+    const recoveredAddress = publicKeyToAddress(publicKey)
+    if (!isAddressEqual(recoveredAddress, this.account)) {
+      console.error("Address mismatch after ecrecover", {
+        recoveredAddress,
+        expectedAddress: this.account,
+        messageHash,
+        signature,
+        publicKey,
+      })
+      throw new Error(`Recovered signer ${recoveredAddress} does not match expected account ${this.account}. The wallet's EIP-712 hash may differ from the client-computed hash.`)
+    }
 
     const circuitInputs: InputMap = {
       pub_key_x: [...hexToBytes(publicKey).slice(1, 33)],
@@ -397,7 +411,7 @@ export class ShieldedPool {
       shielded_root: toHex(shieldedTree.root ?? 0n, { size: 32 }),
       wormhole_root: toHex(wormholeTree.root ?? 0n, { size: 32 }),
       asset_id: assetId.toString(),
-      owner_address: this.account,
+      owner_address: BigInt(this.account).toString(),
       input_notes: inputNotes.map(note => ({
         blinding: note.blinding.toString(),
         amount: note.amount.toString(),
@@ -461,8 +475,8 @@ export function toShieldedTxStruct(args: {
   sender: Address, // required if wormholeDeposit is undefined
   token: Address, // only for unshields
   tokenId?: bigint, // only for unshields (optional: defaults to 0)
-  shieldedRoot: Hex,
-  wormholeRoot: Hex,
+  shieldedRoot: bigint,
+  wormholeRoot: bigint,
   wormholeDeposit?: WormholeDeposit,
   wormholePseudoSecret?: bigint, // required if wormholeDeposit is undefined
   inputs: InputNote[],
@@ -475,7 +489,7 @@ export function toShieldedTxStruct(args: {
   let withdrawals: Withdrawal[] = [];
 
   if (args.wormholeDeposit) {
-    wormholeNullifier = toHex(getWormholeNullifier(args.wormholeDeposit));
+    wormholeNullifier = toHex(getWormholeNullifier(args.wormholeDeposit), { size: 32 });
   } else {
     if (!args.wormholePseudoSecret) {
       throw new Error("wormholePseudoSecret is required");
@@ -487,7 +501,7 @@ export function toShieldedTxStruct(args: {
       throw new Error("token is required");
     }
     const assetId = getAssetId(args.token, args.tokenId);
-    wormholeNullifier = toHex(getWormholePseudoNullifier(args.sender, assetId, args.wormholePseudoSecret));
+    wormholeNullifier = toHex(getWormholePseudoNullifier(args.sender, assetId, args.wormholePseudoSecret), { size: 32 });
   }
 
   if (isUnshield) {
@@ -509,10 +523,10 @@ export function toShieldedTxStruct(args: {
 
   return {
     chainId: args.chainId,
-    wormholeRoot: args.wormholeRoot,
+    wormholeRoot: toHex(args.wormholeRoot, { size: 32 }),
     wormholeNullifier,
-    shieldedRoot: args.shieldedRoot,
-    nullifiers: args.inputs.map(input => toHex(getNullifier(args.sender, assetId, input))),
+    shieldedRoot: toHex(args.shieldedRoot, { size: 32 }),
+    nullifiers: args.inputs.map(input => toHex(getNullifier(args.sender, assetId, input), { size: 32 })),
     commitments: args.outputs.map(output => getCommitment(assetId, output)),
     withdrawals,
   }

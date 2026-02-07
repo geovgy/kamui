@@ -6,8 +6,8 @@ const CIRCUITS: CircuitType[] = ["utxo_2x2", "ragequit"]
 
 async function generateAndWriteSolidityVerifierFor(circuit: CircuitType) {
   const prover = new Prover(circuit)
-  const solidityVerifier = await prover.getSolidityVerifier()
-  const verifierPath = path.join(__dirname, "../build/verifiers/", circuit + "_verifier.sol")
+  const solidityVerifier = await prover.getSolidityVerifier({ keccak: true })
+  const verifierPath = path.join(__dirname, "../circuits/main/", circuit, "target", circuit + "_verifier.sol")
   writeFileSync(verifierPath, solidityVerifier)
 }
 
