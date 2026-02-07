@@ -26,12 +26,13 @@ import { getMerkleTree } from "@/src/merkle";
 import { MERKLE_TREE_DEPTH } from "@/src/constants";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { ShieldedPool } from "../storage/shielded-pool";
-import { useConnection, useEnsAddress, useEnsName, useEnsResolver, useConfig as useWagmiConfig } from "wagmi";
-import { Address, erc20Abi, formatUnits, getAddress, isAddress, parseUnits } from "viem";
+import { useConfig as useWagmiConfig } from "wagmi";
+import { Address, createPublicClient, erc20Abi, formatUnits, getAddress, http, isAddress, parseUnits } from "viem";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { mainnet } from "viem/chains";
 import { useShieldedPool } from "../hooks/use-shieldedpool";
+import { useQuery } from "@tanstack/react-query";
+import { getEnsAddress, getEnsName } from "viem/actions";
 
 type BalanceSource = "private" | "public";
 
@@ -65,28 +66,43 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
   const isLoading = useMemo(() => {
     return status === "signing" || status === "executing" || status === "confirming";
   }, [status]);
-  
-  const { data: ensName } = useEnsName({
-    address: recipientInput.trim() as Address,
-    chainId: mainnet.id,
-    universalResolverAddress: recipientInput.trim() as Address,
-    query: {
-      enabled: isAddress(recipientInput.trim()),
-    }
-  });
-  const { data: ensAddress } = useEnsAddress({
-    name: recipientInput,
-    query: {
-      enabled: !isAddress(recipientInput.trim()) && recipientInput.trim().endsWith(".eth"),
-    }
-  });
 
-  const recipient = useMemo(() => {
-    return {
-      address: ensAddress as Address ?? isAddress(recipientInput.trim()) ? getAddress(recipientInput.trim()) : undefined,
-      name: ensName ?? undefined,
-    }
-  }, [recipientInput, ensAddress, ensName]);
+  const { data: recipient } = useQuery({
+    queryKey: ["ens-resolution", recipientInput.trim()],
+    queryFn: async () => {
+      const client = createPublicClient({
+        chain: mainnet,
+        transport: http(mainnet.rpcUrls.default.http[0]),
+      });
+      const rec = recipientInput.trim();
+      const result = {
+        address: isAddress(rec) ? getAddress(rec) : undefined,
+        name: rec.endsWith(".eth") ? rec : undefined,
+        resolved: false,
+      }
+      if (result.address) {
+        try {
+          const ensName = await getEnsName(client, {
+            address: result.address,
+          });
+          result.name = ensName ?? undefined;
+          result.resolved = true;
+        } catch (error) {}
+      }
+      if (result.name && !result.address) {
+        try {
+          const ensAddress = await getEnsAddress(client, {
+            name: result.name,
+          });
+          result.address = ensAddress ?? undefined;
+          result.resolved = true;
+        } catch (error) {}
+      }
+
+      return result;
+    },
+    enabled: !!recipientInput.trim(),
+  });
 
   const parsedAmount = useMemo(() => {
     return parseUnits(amountInput.trim(), wormholeAsset.decimals);
@@ -105,10 +121,10 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
   }, [fundsSource, fundsDestination]);
   
   const transferDescription = useMemo(() => {
-    if (!recipient.address && !amountInput.trim()) {
+    if (!recipient?.address && !amountInput.trim()) {
       return "Please enter a recipient address and amount to send";
     }
-    if (!recipient.address) {
+    if (!recipient?.address) {
       return "Please enter a recipient address";
     }
     if (!amountInput.trim()) {
@@ -145,7 +161,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
 
   async function handleWormholeTransaction() {
     try {
-      if (!recipient.address) {
+      if (!recipient?.address) {
         throw new Error("Invalid recipient address");
       }
       const client = wagmiConfig.getClient();
@@ -199,7 +215,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
   // TODO: Implement public transaction
   async function handlePublicTransaction() {
     try {
-      if (!recipient.address) {
+      if (!recipient?.address) {
         throw new Error("Invalid recipient address");
       }
       const hash = await writeContract(wagmiConfig, {
