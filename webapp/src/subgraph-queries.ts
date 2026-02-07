@@ -1,5 +1,63 @@
-import { Address, Hex } from "viem";
+import { Address, Hex, numberToHex } from "viem";
 import { subgraphQuery } from "./subgraph";
+
+export async function queryTrees(args: {
+  wormholeTreeId: number,
+  shieldedTreeId: number,
+}): Promise<{
+  wormholeTree: {
+    id: number;
+    leaves: bigint[];
+    size: number;
+    createdAt: number;
+    updatedAt: number;
+  } | null
+  shieldedTree: {
+    id: number;
+    leaves: bigint[];
+    size: number;
+    createdAt: number;
+    updatedAt: number;
+  } | null
+}> {
+  const wormholeTreeId = numberToHex(args.wormholeTreeId)
+  const shieldedTreeId = numberToHex(args.shieldedTreeId)
+  const query = 
+  `
+    query Trees($wormholeTreeIds: Bytes!, $shieldedTreeIds: Bytes!) {
+      wormholeTree(id: $wormholeTreeId) {
+        id
+        leaves
+        size
+        createdAt
+        updatedAt
+      }
+      shieldedTree(id: $shieldedTreeId) {
+        id
+        leaves
+        size
+        createdAt
+        updatedAt
+      }
+    }
+  `;
+  return subgraphQuery<{
+    wormholeTree: {
+      id: number;
+      leaves: bigint[];
+      size: number;
+      createdAt: number;
+      updatedAt: number;
+    } | null
+    shieldedTree: {
+      id: number;
+      leaves: bigint[];
+      size: number;
+      createdAt: number;
+      updatedAt: number;
+    } | null
+  }>(query, { wormholeTreeId, shieldedTreeId });
+}
 
 export async function queryWormholeAssets() {
   const query = 

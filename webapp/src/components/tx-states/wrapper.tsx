@@ -166,12 +166,12 @@ export function WrapperDialogContent({ transactionType, implementationType, worm
             </InputGroupAddon>
           </InputGroup>
           <div className="flex justify-end items-center gap-2 px-4 text-xs text-muted-foreground">
+            <span>Balance: {formatBalance(inputAsset.balance, inputAsset.decimals)} {inputAsset.symbol}</span>
             <Button variant="link" size="xs" onClick={() => {
               setInputAmount(formatUnits(inputAsset.balance, inputAsset.decimals));
             }}>
               Max
             </Button>
-            <span>Balance: {formatBalance(inputAsset.balance, inputAsset.decimals)} {inputAsset.symbol}</span>
           </div>
         </div>
 
@@ -191,7 +191,7 @@ export function WrapperDialogContent({ transactionType, implementationType, worm
                 </span>
             </InputGroupAddon>
           </InputGroup>
-          <div className="flex justify-end px-4 text-xs text-muted-foreground">
+          <div className="flex justify-end px-4 text-xs text-muted-foreground mr-11">
             Balance: {formatBalance(outputAsset.balance, outputAsset.decimals)} {outputAsset.symbol}
           </div>
         </div>

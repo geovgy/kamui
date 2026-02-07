@@ -1,4 +1,47 @@
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
+
+// IndexedDB types
+
+export interface NoteDBShieldedEntry {
+  id: string // chainId:treeNumber:leafIndex
+  treeNumber: number
+  leafIndex: number
+  chainId: number
+  from?: Address
+  note: {
+    account: Address
+    asset: Address
+    assetId: string
+    blinding: string
+    amount: string
+    transferType: TransferType
+  }
+  status?: "available" | "used"
+  usedAt?: string
+  committedAt?: string
+  memo?: string
+}
+
+export interface NoteDBWormholeEntry {
+  id: string // same as entryId
+  entryId: string
+  treeNumber: number
+  leafIndex: number
+  chainId: number
+  entry: {
+    to: Address
+    from: Address
+    wormhole_secret: string
+    token: Address
+    token_id: string
+    amount: string
+  }
+  status?: "pending" | "approved" | "rejected" | "completed" | "ragequitted"
+  usedAt?: string
+  memo?: string
+}
+
+// Component Params
 
 export interface BalanceInfo {
   publicBalance: bigint;
@@ -16,6 +59,8 @@ export interface Asset {
 export interface WormholeAsset extends Asset {
   implementation: Address;
 }
+
+// Prover Types
 
 export enum TransferType {
   TRANSFER = 1,
@@ -45,8 +90,32 @@ export interface WormholeNote {
 }
 
 export interface WormholeDeposit extends WormholeNote {
-  tree_root: bigint;
   leaf_index: bigint;
   leaf_siblings: bigint[];
   is_approved: boolean;
+}
+
+// Contract Types
+export interface Withdrawal {
+  to: Address;
+  asset: Address;
+  id: bigint;
+  amount: bigint;
+}
+
+export interface ShieldedTx {
+  chainId: bigint;
+  wormholeRoot: Hex;
+  wormholeNullifier: Hex;
+  shieldedRoot: Hex;
+  nullifiers: Hex[];
+  commitments: bigint[];
+  withdrawals: Withdrawal[];
+}
+
+export interface RagequitTx {
+  entryId: bigint;
+  approved: boolean;
+  wormholeRoot: Hex;
+  wormholeNullifier: Hex;
 }

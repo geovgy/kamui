@@ -145,6 +145,7 @@ export function AssetsTable() {
               <TransferDialog
                 wormholeAsset={asset.metadata}
                 balances={asset.wormholeBalances}
+                refetchBalances={refetch}
                 trigger={
                   <Button variant="outline" className="rounded-full">
                     Send

@@ -2,6 +2,10 @@ import { TransferType, type InputNote, type OutputNote, type WormholeNote } from
 import { poseidon2Hash } from "@zkpassport/poseidon2";
 import { bytesToHex, stringToHex, toBytes, toHex, type Address } from "viem";
 
+export function getAssetId(token: Address, tokenId?: bigint): bigint {
+  return poseidon2Hash([BigInt(token), BigInt(tokenId ?? 0)]);
+}
+
 export function getRecipientHash(recipient: Address, blinding: bigint): bigint {
   return poseidon2Hash([BigInt(recipient), blinding]);
 }

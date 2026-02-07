@@ -25,39 +25,207 @@ import { getWormholeBurnCommitment } from "@/src/joinsplits";
 import { getMerkleTree } from "@/src/merkle";
 import { MERKLE_TREE_DEPTH } from "@/src/constants";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { ShieldedPool } from "../storage/shielded-pool";
+import { useEnsAddress, useEnsName, useEnsResolver, useConfig as useWagmiConfig } from "wagmi";
+import { Address, erc20Abi, formatUnits, getAddress, isAddress, parseUnits } from "viem";
+import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
+import { mainnet } from "viem/chains";
 
 type BalanceSource = "private" | "public";
 
-export function TransferDialog({ trigger, wormholeAsset, balances }: { trigger: React.ReactNode, wormholeAsset: WormholeAsset, balances: BalanceInfo }) {
+function formatBalance(balance: bigint, decimals = 18): string {
+  const formatted = formatUnits(balance, decimals);
+  const num = parseFloat(formatted);
+  if (num === 0) return "0";
+  if (num < 0.0001) return "<0.0001";
+  return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatAddress(address: Address) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalances }: { trigger: React.ReactNode, wormholeAsset: WormholeAsset, balances: BalanceInfo, refetchBalances: () => void }) {
   const { publicBalance, privateBalance } = balances;
   const { mutateAsync: prove } = useProve("ragequit");
 
+  const wagmiConfig = useWagmiConfig();
+  
   const [isProving, setIsProving] = useState(false);
-  const [recipientInput, setRecipientInput] = useState("");
+  const [recipientInput, setRecipientInput] = useState<string>("");
   const [amountInput, setAmountInput] = useState("");
   const [fundsSource, setFundsSource] = useState<BalanceSource>("private");
   const [fundsDestination, setFundsDestination] = useState<BalanceSource>("private");
+
+  const [status, setStatus] = useState<undefined | "signing" | "executing" | "confirming" | "success" | "error">(undefined);
+
+  const isLoading = useMemo(() => {
+    return status === "signing" || status === "executing" || status === "confirming";
+  }, [status]);
+  
+  const { data: ensName } = useEnsName({
+    address: recipientInput.trim() as Address,
+    chainId: mainnet.id,
+    universalResolverAddress: recipientInput.trim() as Address,
+    query: {
+      enabled: isAddress(recipientInput.trim()),
+    }
+  });
+  const { data: ensAddress } = useEnsAddress({
+    name: recipientInput,
+    query: {
+      enabled: !isAddress(recipientInput.trim()) && recipientInput.trim().endsWith(".eth"),
+    }
+  });
+
+  const recipient = useMemo(() => {
+    return {
+      address: ensAddress as Address ?? isAddress(recipientInput.trim()) ? getAddress(recipientInput.trim()) : undefined,
+      name: ensName ?? undefined,
+    }
+  }, [recipientInput, ensAddress, ensName]);
+
+  const parsedAmount = useMemo(() => {
+    return parseUnits(amountInput.trim(), wormholeAsset.decimals);
+  }, [amountInput, wormholeAsset.decimals]);
+
+  const txType = useMemo<"wormhole" | "shielded" | "unshield" | "public">(() => {
+    if (fundsSource === "public" && fundsDestination === "private") {
+      return "wormhole";
+    } else if (fundsSource === "private" && fundsDestination === "public") {
+      return "unshield";
+    } else if (fundsSource === "public" && fundsDestination === "public") {
+      return "public";
+    } else {
+      return "shielded";
+    }
+  }, [fundsSource, fundsDestination]);
   
   const transferDescription = useMemo(() => {
-    if (!recipientInput.trim() && !amountInput.trim()) {
+    if (!recipient.address && !amountInput.trim()) {
       return "Please enter a recipient address and amount to send";
     }
-    if (!recipientInput.trim()) {
+    if (!recipient.address) {
       return "Please enter a recipient address";
     }
     if (!amountInput.trim()) {
       return "Please enter an amount to send";
     }
-    if (fundsSource === "public" && fundsDestination === "private") {
-      return `Shield ${amountInput} ${wormholeAsset.symbol} to them via zk-wormhole`;
-    } else if (fundsSource === "private" && fundsDestination === "public") {
-      return `Unshield ${amountInput} ${wormholeAsset.symbol} to them`;
-    } else if (fundsSource === "public" && fundsDestination === "public") {
-      return `Send ${amountInput} ${wormholeAsset.symbol} to them as public transfer`;
+    const recipientName = recipient.name ?? formatAddress(recipient.address);
+    if (txType === "wormhole") {
+      return `Shield ${amountInput} ${wormholeAsset.symbol} to ${recipientName} via zk-wormhole`;
+    } else if (txType === "unshield") {
+      return `Unshield ${amountInput} ${wormholeAsset.symbol} to ${recipientName}`;
+    } else if (txType === "public") {
+      return `Send ${amountInput} ${wormholeAsset.symbol} to ${recipientName} as public transfer`;
     } else {
-      return `Send ${amountInput} ${wormholeAsset.symbol} to them via shielded transfer`;
+      return `Send ${amountInput} ${wormholeAsset.symbol} to ${recipientName} via shielded transfer`;
     }
-  }, [recipientInput, amountInput, fundsSource, fundsDestination, wormholeAsset.symbol]);
+  }, [recipient, amountInput, txType, wormholeAsset.symbol]);
+
+  async function handleTransaction() {
+    switch(txType) {
+      case "wormhole":
+        await handleWormholeTransaction();
+        break;
+      case "unshield":
+        await handleUnshieldTransaction();
+        break;
+      case "public":
+        await handlePublicTransaction();
+        break;
+      case "shielded":
+        await handleShieldedTransaction();
+        break;
+    }
+  }
+
+  async function handleWormholeTransaction() {
+    try {
+      if (!recipient.address) {
+        throw new Error("Invalid recipient address");
+      }
+      const client = wagmiConfig.getClient();
+      if (!client) {
+        throw new Error("Client not found");
+      }
+      const shieldedPool = new ShieldedPool(wormholeAsset.address);
+      setStatus("signing");
+      const { hash, wormholeSecret, burnAddress } = await shieldedPool.wormholeTransfer(wagmiConfig, {
+        to: recipient.address,
+        tokenType: "erc20",
+        token: wormholeAsset.address,
+        tokenId: 0n,
+        amount: parsedAmount,
+      });
+      console.log({
+        hash,
+        burnAddress
+      })
+      setStatus("confirming");
+      toast.info(`Waiting for transaction to be confirmed...`);
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
+      if (receipt.status === "success") {
+        setStatus("success");
+        const entry = await shieldedPool.parseAndSaveWormholeEntry({
+          chainId: client.chain.id,
+          receiver: recipient.address,
+          wormholeSecret: wormholeSecret,
+          receipt: receipt,
+        });
+        toast.success(`Transaction confirmed! Entry ID: ${entry.id}`);
+        console.log("Entry saved:", entry);
+        refetchBalances();
+      } else {
+        setStatus("error");
+        toast.error("Transaction failed");
+      }
+    } catch (error) {
+      console.error(error);
+      setStatus("error");
+      toast.error("Transaction failed");
+    }
+    setStatus(undefined);
+  }
+  // TODO: Implement unshield transaction
+  async function handleUnshieldTransaction() {
+    throw new Error("Not implemented");
+  }
+  // TODO: Implement public transaction
+  async function handlePublicTransaction() {
+    try {
+      if (!recipient.address) {
+        throw new Error("Invalid recipient address");
+      }
+      const hash = await writeContract(wagmiConfig, {
+        address: wormholeAsset.address,
+        abi: erc20Abi, // TODO: Use dynamic ABI based on asset type
+        functionName: "transfer",
+        args: [recipient.address, parsedAmount],
+      });
+      setStatus("confirming");
+      toast.info(`Waiting for transaction to be confirmed...`);
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
+      if (receipt.status === "success") {
+        setStatus("success");
+        toast.success(`Transaction confirmed!`);
+        refetchBalances();
+      } else {
+        setStatus("error");
+        toast.error("Transaction failed");
+      }
+    } catch (error) {
+      console.error(error);
+      setStatus("error");
+      toast.error("Transaction failed");
+    }
+    setStatus(undefined);
+  }
+  // TODO: Implement shielded transaction
+  async function handleShieldedTransaction() {
+    throw new Error("Not implemented");
+  }
 
   // DELETE: This is just a test
   const handleGenerateZKP = async () => {
@@ -131,30 +299,49 @@ export function TransferDialog({ trigger, wormholeAsset, balances }: { trigger: 
           />
 
           {/* Amount input */}
-          <InputGroup className="h-12 rounded-full">
-            <InputGroupInput
-              type="text"
-              placeholder="0"
-              value={amountInput}
-              onChange={(e) => {
-                setAmountInput(e.target.value.replace(/[^0-9.]/g, ""));
-              }}
-              className="text-right text-xl focus:text-foreground"
-            />
-            <InputGroupAddon
-              align="inline-end"
-              className="pr-4 w-20 text-left justify-start"
-            >
-              <span className="font-medium text-foreground text-left">ETH</span>
-            </InputGroupAddon>
-          </InputGroup>
+          <div className="space-y-1">
+            <InputGroup className="h-12 rounded-full">
+              <InputGroupInput
+                type="text"
+                placeholder="0"
+                value={amountInput}
+                onChange={(e) => {
+                  setAmountInput(e.target.value.replace(/[^0-9.]/g, ""));
+                }}
+                className="text-right text-xl focus:text-foreground"
+              />
+              <InputGroupAddon
+                align="inline-end"
+                className="pr-4 w-20 text-left justify-start"
+              >
+                <span className="font-medium text-foreground text-left">{wormholeAsset.symbol}</span>
+              </InputGroupAddon>
+            </InputGroup>
+            <div className="flex justify-end items-center gap-2 px-4 text-xs text-muted-foreground">
+              <span>Balance: {formatBalance(fundsSource === "public" ? publicBalance : privateBalance, wormholeAsset.decimals)} {wormholeAsset.symbol}</span>
+              <Button variant="link" size="xs" onClick={() => {
+                const balance = fundsSource === "public" ? publicBalance : privateBalance;
+                setAmountInput(formatUnits(balance, wormholeAsset.decimals));
+              }}>
+                Max
+              </Button>
+            </div>
+          </div>
 
           {/* Funds source radio group */}
           <div className="space-y-2">
             <span className="text-sm font-medium">Funds source</span>
             <RadioGroup
               value={fundsSource}
-              onValueChange={(v) => setFundsSource(v as BalanceSource)}
+              onValueChange={(v) => {
+                setFundsSource(v as BalanceSource);
+                if (
+                  (v === "private" && parsedAmount > privateBalance)
+                  || (v === "public" && parsedAmount > publicBalance)
+                ) {
+                  setAmountInput("");
+                }
+              }}
               className="grid grid-cols-2 gap-0 rounded-md border"
             >
               <label
@@ -218,12 +405,12 @@ export function TransferDialog({ trigger, wormholeAsset, balances }: { trigger: 
                 {transferDescription}
               </span>
               <Button
-                onClick={handleGenerateZKP}
-                disabled={isProving}
+                onClick={handleTransaction}
+                disabled={isLoading}
                 size="lg"
                 className="w-full"
               >
-                {isProving && <Loader2 className="size-4 animate-spin" />}
+                {isLoading && <Loader2 className="size-4 animate-spin" />}
                 Send
               </Button>
             </div>
