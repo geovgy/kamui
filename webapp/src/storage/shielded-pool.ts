@@ -90,7 +90,7 @@ export class ShieldedPool {
       leafIndex: 0,
       chainId: args.chainId,
       entry: {
-        to,
+        to: args.receiver,
         from,
         wormhole_secret: args.wormholeSecret.toString(),
         token,
@@ -113,6 +113,29 @@ export class ShieldedPool {
       throw new Error("WormholeEntry log not found in receipt");
     }
     return parsedLogs[0].args
+  }
+
+  async getWormholeNotes() {
+    return this._db.getWormholeNotes()
+  }
+
+  async updateWormholeEntryCommitment(entryId: string, update: {
+    treeNumber: number,
+    leafIndex: number,
+    status: NoteDBWormholeEntry["status"],
+  }) {
+    const entry = await this._db.getNote("wormhole_note", entryId) as NoteDBWormholeEntry | undefined
+    if (!entry) {
+      throw new Error(`Wormhole entry with id ${entryId} not found in DB`)
+    }
+    const updated: NoteDBWormholeEntry = {
+      ...entry,
+      treeNumber: update.treeNumber,
+      leafIndex: update.leafIndex,
+      status: update.status,
+    }
+    await this._db.updateNote("wormhole_note", updated)
+    return updated
   }
 
   // TODO: Implement ragequit

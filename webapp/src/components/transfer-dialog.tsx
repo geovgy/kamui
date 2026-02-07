@@ -27,10 +27,11 @@ import { MERKLE_TREE_DEPTH } from "@/src/constants";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ShieldedPool } from "../storage/shielded-pool";
-import { useEnsAddress, useEnsName, useEnsResolver, useConfig as useWagmiConfig } from "wagmi";
+import { useConnection, useEnsAddress, useEnsName, useEnsResolver, useConfig as useWagmiConfig } from "wagmi";
 import { Address, erc20Abi, formatUnits, getAddress, isAddress, parseUnits } from "viem";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { mainnet } from "viem/chains";
+import { useShieldedPool } from "../hooks/use-shieldedpool";
 
 type BalanceSource = "private" | "public";
 
@@ -51,6 +52,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
   const { mutateAsync: prove } = useProve("ragequit");
 
   const wagmiConfig = useWagmiConfig();
+  const { data: shieldedPool } = useShieldedPool();
   
   const [isProving, setIsProving] = useState(false);
   const [recipientInput, setRecipientInput] = useState<string>("");
@@ -150,7 +152,9 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
       if (!client) {
         throw new Error("Client not found");
       }
-      const shieldedPool = new ShieldedPool(wormholeAsset.address);
+      if (!shieldedPool) {
+        throw new Error("Shielded pool not found");
+      }
       setStatus("signing");
       const { hash, wormholeSecret, burnAddress } = await shieldedPool.wormholeTransfer(wagmiConfig, {
         to: recipient.address,

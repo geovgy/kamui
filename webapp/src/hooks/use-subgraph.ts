@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryWormholeAssets, queryWormholeAssetImplementations, queryWormholeEntries } from "../subgraph-queries";
+import { queryWormholeAssets, queryWormholeAssetImplementations, queryWormholeEntriesByAddress, queryWormholeEntriesByEntryIds } from "../subgraph-queries";
 import { Address } from "viem";
 
 export function useWormholeAssets() {
@@ -23,6 +23,16 @@ export function useWormholeEntries(args?: {
 }) {
   return useQuery({
     queryKey: ["wormholeEntries", args],
-    queryFn: () => queryWormholeEntries(args),
+    queryFn: () => queryWormholeEntriesByAddress(args),
+  });
+}
+
+export function useWormholeEntriesByEntryIds(args: {
+  entryIds: bigint[],
+  orderDirection?: "asc" | "desc",
+}) {
+  return useQuery({
+    queryKey: ["wormholeEntriesByEntryIds", { ...args, entryIds: args.entryIds.map(id => id.toString()) }],
+    queryFn: () => queryWormholeEntriesByEntryIds(args),
   });
 }

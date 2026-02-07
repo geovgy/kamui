@@ -141,7 +141,7 @@ export async function queryWormholeAssetImplementations() {
   }>(query, {});
 }
 
-export async function queryWormholeEntries(args?: {
+export async function queryWormholeEntriesByAddress(args?: {
   from?: Address,
   to?: Address,
   orderDirection?: "asc" | "desc",
@@ -155,7 +155,7 @@ export async function queryWormholeEntries(args?: {
   };
   const query = 
   `
-    query WormholeEntries($orderBy: String!, $orderDirection: String!, $from: Bytes, $to: Bytes) {
+    query WormholeEntriesByAddress($orderBy: String!, $orderDirection: String!, $from: Bytes, $to: Bytes) {
       wormholeEntries(
         where: { from: $from, to: $to }
         orderBy: $orderBy
@@ -180,6 +180,66 @@ export async function queryWormholeEntries(args?: {
       tokenId: bigint;
       amount: bigint;
       blockTimestamp: bigint;
+    }[]
+  }>(query, variables);
+}
+
+export async function queryWormholeEntriesByEntryIds(args?: {
+  entryIds: bigint[],
+  orderDirection?: "asc" | "desc",
+}) {
+  const { entryIds, orderDirection } = args ?? {};
+  const variables = {
+    entryIds: entryIds,
+    orderBy: "blockTimestamp",
+    orderDirection: orderDirection,
+  };
+  const query = 
+  `
+    query WormholeEntriesByEntryIds($orderBy: String!, $orderDirection: String!, $entryIds: [BigInt!]) {
+      wormholeEntries(
+        where: { entryId_in: $entryIds }
+        orderBy: $orderBy
+        orderDirection: $orderDirection
+      ) {
+        entryId
+        submitted
+        commitment {
+          commitment
+          treeId
+          leafIndex
+          assetId
+          from
+          to
+          amount
+          approved
+          submittedBy
+          blockTimestamp
+          transactionHash
+        }
+        blockTimestamp
+        transactionHash
+      }
+    }
+  `;
+  return subgraphQuery<{
+    wormholeEntries: {
+      id: string;
+      entryId: bigint;
+      submitted: boolean;
+      commitment: {
+        commitment: bigint;
+        treeId: bigint;
+        leafIndex: bigint;
+        assetId: Address;
+        from: Address;
+        to: Address;
+        amount: bigint;
+        approved: boolean;
+        submittedBy: Address;
+      } | null;
+      blockTimestamp: bigint;
+      transactionHash: Hex;
     }[]
   }>(query, variables);
 }
