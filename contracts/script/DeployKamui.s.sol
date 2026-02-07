@@ -21,6 +21,8 @@ contract DeployKamuiScript is Script {
     // address GOVERNOR = address(0x1); // TODO: set governor address
     address GOVERNOR = vm.envAddress("GOVERNOR");
 
+    address WORMHOLE_APPROVER = vm.envAddress("APPROVER");
+
     Kamui kamui;
 
     IPoseidon2 poseidon2;
@@ -81,6 +83,17 @@ contract DeployKamuiScript is Script {
         console.log("|-- ERC20Wormhole -->", address(erc20Implementation));
         kamui.setWormholeAssetImplementation(address(erc4626Implementation), true);
         console.log("|-- ERC4626Wormhole -->", address(erc4626Implementation));
+
+        // Launch WETH Wormhole Asset
+        console.log("\nCreating Wormhole Assets:");
+        address asset = kamui.createWormholeAsset(address(wethImplementation), bytes(""));
+        console.log("|-- WETH Wormhole Asset -->", asset);
+
+        if (WORMHOLE_APPROVER != address(0)) {
+            console.log("\nSetting wormhole approver");
+            kamui.setWormholeApprover(WORMHOLE_APPROVER, true);
+            console.log("|-- Approver -->", WORMHOLE_APPROVER);
+        }
 
         // Transfer ownership to governor
         if (GOVERNOR != msg.sender) {

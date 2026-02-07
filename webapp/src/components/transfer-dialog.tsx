@@ -20,14 +20,14 @@ import {
 } from "./ui/input-group";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { useProve } from "@/src/hooks/use-zk-provers";
-import { WormholeNote, WormholeAsset, BalanceInfo } from "@/src/types";
+import { WormholeNote, WormholeAsset, BalanceInfo, ShieldedTxStringified } from "@/src/types";
 import { getWormholeBurnCommitment } from "@/src/joinsplits";
 import { getMerkleTree } from "@/src/merkle";
 import { MERKLE_TREE_DEPTH } from "@/src/constants";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSignTypedData, useConfig as useWagmiConfig } from "wagmi";
-import { Address, createPublicClient, erc20Abi, formatUnits, getAddress, http, isAddress, parseUnits } from "viem";
+import { Address, createPublicClient, erc20Abi, formatUnits, getAddress, http, isAddress, parseUnits, toHex } from "viem";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { mainnet } from "viem/chains";
 import { useShieldedPool } from "../hooks/use-shieldedpool";
@@ -261,7 +261,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
       // Sign EIP-712 message
       // Format public inputs
       setStatus("signing");
-      const { circuitInputs, entries, outputNotes } = await shieldedPool.signShieldedTransfer(wagmiConfig, {
+      const { circuitInputs, entries, outputNotes, typedData } = await shieldedPool.signShieldedTransfer(wagmiConfig, {
         chainId: client.chain.id,
         receiver: recipient.address,
         token: wormholeAsset.address,
@@ -274,11 +274,27 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
       console.log("Proving...");
       const proofData = await prove(circuitInputs);
       console.log("Proof data:", proofData);
+
+      // Stringify ShieldedTx
+      const shieldedTx: ShieldedTxStringified = {
+        chainId: typedData.message.chainId.toString(),
+        wormholeRoot: typedData.message.wormholeRoot,
+        wormholeNullifier: typedData.message.wormholeNullifier,
+        shieldedRoot: typedData.message.shieldedRoot,
+        nullifiers: typedData.message.nullifiers,
+        commitments: typedData.message.commitments.map(commitment => commitment.toString()),
+        withdrawals: typedData.message.withdrawals.map(withdrawal => ({
+          to: withdrawal.to,
+          asset: withdrawal.asset,
+          id: withdrawal.id.toString(),
+          amount: withdrawal.amount.toString(),
+        })),
+      };
       
       // Call relayer to execute transaction
       const response = await fetch("/api/shielded-relay", {
         method: "POST",
-        body: JSON.stringify({ shieldedTx: circuitInputs, proofData }),
+        body: JSON.stringify({ shieldedTx, proof: toHex(proofData.proof) }),
       });
       if (!response.ok) {
         throw new Error("Failed to relay shielded transfer");

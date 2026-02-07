@@ -123,8 +123,8 @@ contract Kamui is IKamui, EIP712, Ownable {
     // Owner functions
     function addVerifier(IVerifier verifier, uint256 inputs, uint256 outputs) external onlyOwner {
         require(address(verifier) != address(0), "Kamui: verifier is zero address");
-        address existing = address(_utxoVerifiers[inputs][outputs]);
-        require(existing == address(0), "Kamui: verifier already exists");
+        // address existing = address(_utxoVerifiers[inputs][outputs]);
+        // require(existing == address(0), "Kamui: verifier already exists");
         require(inputs > 0 && outputs > 0, "Kamui: invalid inputs or outputs");
         _utxoVerifiers[inputs][outputs] = verifier;
         emit VerifierAdded(address(verifier), inputs, outputs);
@@ -341,8 +341,8 @@ contract Kamui is IKamui, EIP712, Ownable {
         return poseidon2.hash_4(recipientHash, uint256(assetId), amount, uint256(transferType));
     }
 
-    function _getAssetId(address asset, uint256 id) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(asset, id));
+    function _getAssetId(address asset, uint256 id) internal view returns (bytes32) {
+        return bytes32(poseidon2.hash_2(uint256(uint160(asset)), id));
     }
 
     function createWormholeAsset(address implementation, bytes calldata initData) external returns (address asset) {

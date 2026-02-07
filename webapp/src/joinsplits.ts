@@ -38,7 +38,8 @@ export function getWormholeBurnCommitment(args: WormholeNote & {
   approved: boolean;
 }): bigint {
   const burnAddress = getWormholeBurnAddress(args.recipient, args.wormhole_secret);
-  return poseidon2Hash([BigInt(args.approved), BigInt(burnAddress), args.asset_id, BigInt(args.sender), args.amount]);
+  // Must match contract ordering: poseidon2(approved, sender, burn_address, assetId, amount)
+  return poseidon2Hash([BigInt(args.approved), BigInt(args.sender), BigInt(burnAddress), args.asset_id, args.amount]);
 }
 
 export function getWormholeNullifier(args: WormholeNote): bigint {

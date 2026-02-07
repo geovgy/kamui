@@ -41,8 +41,8 @@ contract KamuiTest is Test {
         return poseidon2.hash_5(approved ? 1 : 0, uint256(uint160(from)), uint256(uint160(to)), uint256(assetId), amount);
     }
 
-    function _getAssetId(address asset, uint256 id) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(asset, id));
+    function _getAssetId(address asset, uint256 id) internal view returns (bytes32) {
+        return bytes32(poseidon2.hash_2(uint256(uint160(asset)), id));
     }
 
     function setUp() public {

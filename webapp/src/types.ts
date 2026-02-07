@@ -113,6 +113,21 @@ export interface ShieldedTx {
   withdrawals: Withdrawal[];
 }
 
+export interface ShieldedTxStringified {
+  chainId: string;
+  wormholeRoot: Hex;
+  wormholeNullifier: Hex;
+  shieldedRoot: Hex;
+  nullifiers: Hex[];
+  commitments: string[];
+  withdrawals: {
+    to: Address;
+    asset: Address;
+    id: string;
+    amount: string;
+  }[];
+}
+
 export interface RagequitTx {
   entryId: bigint;
   approved: boolean;

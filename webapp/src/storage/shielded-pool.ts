@@ -5,7 +5,6 @@ import { createShieldedTransferOutputNotes, getShieldedTransferInputEntries } fr
 import { getMerkleTrees, queryTrees } from "@/src/subgraph-queries"
 import { getMerkleTree } from "@/src/merkle"
 import { getAssetId, getCommitment, getNullifier, getRandomBlinding, getWormholeBurnAddress, getWormholeNullifier, getWormholePseudoNullifier } from "@/src/joinsplits"
-import { randomBytes } from "@aztec/bb.js"
 import { signTypedData, writeContract } from "wagmi/actions"
 import { Config } from "wagmi"
 import { KAMUI_CONTRACT_ADDRESS } from "../env"
@@ -76,7 +75,7 @@ export class ShieldedPool {
     //   throw new Error("Account missing or mismatch");
     // }
 
-    const wormholeSecret = bytesToBigInt(randomBytes(32));
+    const wormholeSecret = getRandomBlinding();
     const burnAddress = getWormholeBurnAddress(to, wormholeSecret);
 
     // TODO: Check token type and use the appropriate ABI
@@ -152,7 +151,7 @@ export class ShieldedPool {
       note.status === "available" 
       && isAddressEqual(note.note.account, this.account)
       && isAddressEqual(note.note.asset, args.token)
-      && args.tokenId ? BigInt(note.note.assetId ?? "0") === args.tokenId : true
+      && (args.tokenId ? BigInt(note.note.assetId ?? "0") === args.tokenId : true)
     ))
     const balance = shieldedNotes.reduce((total, note) => total + BigInt(note.note.amount ?? "0"), BigInt(0))
     if (args.excludeWormholes) {
@@ -160,8 +159,9 @@ export class ShieldedPool {
     }
     const wormholeNotes = (await this.getWormholeNotes()).filter(note => (
       note.status === "approved" && !note.usedAt
+      && isAddressEqual(note.entry.to, this.account)
       && isAddressEqual(note.entry.token, args.token)
-      && args.tokenId ? BigInt(note.entry.token_id ?? "0") === args.tokenId : true
+      && (args.tokenId ? BigInt(note.entry.token_id ?? "0") === args.tokenId : true)
     ))
     return balance + wormholeNotes.reduce((total, note) => {
       const amount = BigInt(note.entry.amount ?? "0")

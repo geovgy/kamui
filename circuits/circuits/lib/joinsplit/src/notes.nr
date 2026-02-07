@@ -89,9 +89,8 @@ pub impl WormholeNote {
 
     pub fn to_burn_commitment(self, approved: bool) -> Field {
         let burn_address = self.get_burn_address();
-        // 1 signals commitment was approved
-        // 0 signals commitment was not approved
-        hash([approved as Field, burn_address, self.asset_id, self.sender, self.amount])
+        // Must match contract ordering: poseidon2(approved, sender, burn_address, assetId, amount)
+        hash([approved as Field, self.sender, burn_address, self.asset_id, self.amount])
     }
 
     pub fn get_nullifier(self) -> Field {
