@@ -23,40 +23,46 @@ interface WrapperDialogProps {
 
 export function WrapperDialog({ implementationType, wormholeAsset, underlying, refreshBalance, trigger }: WrapperDialogProps) {
   const { address } = useConnection();
-  const { data: underlyingAsset } = !underlying ?
-    useBalance({
-      address,
-      query: {
-        select: (data) => {
-          return {
-            address: zeroAddress as Address,
-            name: chain.nativeCurrency.name as string,
-            symbol: data.symbol,
-            decimals: data.decimals,
-            balance: data.value,
-          } as Asset;
-        },
+  const isNative = !underlying;
+
+  const { data: nativeAsset } = useBalance({
+    address,
+    query: {
+      enabled: isNative,
+      select: (data) => {
+        return {
+          address: zeroAddress as Address,
+          name: chain.nativeCurrency.name as string,
+          symbol: data.symbol,
+          decimals: data.decimals,
+          balance: data.value,
+        } as Asset;
       },
-    }) :
-    useReadContracts({
-      contracts: [
-        { address: underlying, abi: erc20Abi, functionName: "name" },
-        { address: underlying, abi: erc20Abi, functionName: "symbol" },
-        { address: underlying, abi: erc20Abi, functionName: "decimals" },
-        { address: underlying, abi: erc20Abi, functionName: "balanceOf", args: [address!] },
-      ],
-      query: {
-        select: (data) => {
-          return {
-            address: underlying,
-            name: data[0].result as string,
-            symbol: data[1].result as string,
-            decimals: data[2].result as number,
-            balance: data[3].result as bigint,
-          } as Asset;
-        },
+    },
+  });
+
+  const { data: erc20Asset } = useReadContracts({
+    contracts: [
+      { address: underlying!, abi: erc20Abi, functionName: "name" },
+      { address: underlying!, abi: erc20Abi, functionName: "symbol" },
+      { address: underlying!, abi: erc20Abi, functionName: "decimals" },
+      { address: underlying!, abi: erc20Abi, functionName: "balanceOf", args: [address!] },
+    ],
+    query: {
+      enabled: !isNative,
+      select: (data) => {
+        return {
+          address: underlying!,
+          name: data[0].result as string,
+          symbol: data[1].result as string,
+          decimals: data[2].result as number,
+          balance: data[3].result as bigint,
+        } as Asset;
       },
-    })
+    },
+  });
+
+  const underlyingAsset = isNative ? nativeAsset : erc20Asset;
 
   return (
     <Dialog>
