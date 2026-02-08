@@ -353,6 +353,7 @@ export class ShieldedPool {
       shieldedRoot: shieldedTree.root ?? 0n,
       wormholeRoot: wormholeTree.root ?? 0n,
       wormholeDeposit,
+      wormholePseudoSecret,
       inputs: inputNotes,
       outputs: outputNotes,
     })

@@ -7,20 +7,13 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/src/components/ui/input-group";
-import { Loader2 } from "lucide-react";
-import { Abi, Address, erc4626Abi, formatUnits, parseAbi, parseUnits } from "viem";
+import { Loader2, ArrowDown } from "lucide-react";
+import { Abi, erc4626Abi, formatUnits, parseAbi, parseUnits } from "viem";
 import { useConnection, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "viem/actions";
 import { toast } from "sonner";
 import { Asset, WormholeAsset } from "@/src/types";
-
-function formatBalance(balance: bigint, decimals = 18): string {
-  const formatted = formatUnits(balance, decimals);
-  const num = parseFloat(formatted);
-  if (num === 0) return "0";
-  if (num < 0.0001) return "<0.0001";
-  return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
-}
+import { formatBalance } from "@/src/lib/utils";
 
 export interface WrapperDialogContentProps {
   transactionType: "deposit" | "withdraw";
@@ -145,63 +138,77 @@ export function WrapperDialogContent({ transactionType, implementationType, worm
   }, [implementationType, isDeposit, writeContractAsync, wormholeAsset.address, parsedAmount, client]);
 
   return (
-    <>
-      <div className="flex flex-col gap-4">
-        {/* Input amount field */}
-        <div className="space-y-1">
-          <InputGroup className="h-12 rounded-full">
-            <InputGroupInput
-              type="text"
-              placeholder="0"
-              value={inputAmount}
-              onChange={(e) => {
-                setInputAmount(e.target.value.replace(/[^0-9.]/g, ''));
-              }}
-              className="text-right text-xl focus:text-foreground"
-            />
-            <InputGroupAddon align="inline-end" className="pr-4 w-20 text-left justify-start">
-                <span className="font-medium text-foreground text-left">
-                {inputAsset.symbol}
-              </span>
-            </InputGroupAddon>
-          </InputGroup>
-          <div className="flex justify-end items-center gap-2 px-4 text-xs text-muted-foreground">
-            <span>Balance: {formatBalance(inputAsset.balance, inputAsset.decimals)} {inputAsset.symbol}</span>
-            <Button variant="link" size="xs" onClick={() => {
+    <div className="flex flex-col gap-5">
+      {/* Input amount field */}
+      <div className="space-y-2">
+        <label className="text-sm font-semibold text-foreground">From</label>
+        <InputGroup className="h-14 rounded-xl border-2 border-border bg-background focus-within:border-[#dc2626] transition-all">
+          <InputGroupInput
+            type="text"
+            placeholder="0"
+            value={inputAmount}
+            onChange={(e) => {
+              setInputAmount(e.target.value.replace(/[^0-9.]/g, ''));
+            }}
+            className="text-right text-xl font-bold focus:text-foreground"
+          />
+          <InputGroupAddon align="inline-end" className="pr-4 w-24 text-left justify-start">
+            <span className="font-bold text-foreground text-base">{inputAsset.symbol}</span>
+          </InputGroupAddon>
+        </InputGroup>
+        <div className="flex justify-between items-center px-2">
+          <span className="text-xs text-muted-foreground">
+            Balance: {formatBalance(inputAsset.balance, inputAsset.decimals)} {inputAsset.symbol}
+          </span>
+          <Button 
+            variant="ghost" 
+            size="xs" 
+            onClick={() => {
               setInputAmount(formatUnits(inputAsset.balance, inputAsset.decimals));
-            }}>
-              Max
-            </Button>
-          </div>
+            }}
+            className="text-xs font-semibold text-[#dc2626] hover:text-[#b91c1c]"
+          >
+            Max
+          </Button>
         </div>
-
-        {/* Output amount display */}
-        <div className="space-y-1">
-          <InputGroup className="h-12 rounded-full bg-muted/50">
-            <InputGroupInput
-              type="text"
-              placeholder="0"
-              value={outputAmount}
-              readOnly
-              className="text-right text-xl text-muted-foreground"
-            />
-            <InputGroupAddon align="inline-end" className="pr-4 w-20 text-left justify-start">
-                <span className="font-medium text-foreground text-left">
-                  {outputAsset.symbol}
-                </span>
-            </InputGroupAddon>
-          </InputGroup>
-          <div className="flex justify-end px-4 text-xs text-muted-foreground mr-11">
-            Balance: {formatBalance(outputAsset.balance, outputAsset.decimals)} {outputAsset.symbol}
-          </div>
-        </div>
-
-        {/* Submit button */}
-        <Button variant="outline" className="w-full h-12 rounded-full text-base" onClick={handleTransaction} disabled={status !== "none"}>
-          {(status === "signing" || status === "executing") && <Loader2 className="size-4 animate-spin" />}
-          {isDeposit ? "Deposit" : "Withdraw"}
-        </Button>
       </div>
-    </>
+
+      {/* Arrow */}
+      <div className="flex justify-center -my-2 relative z-10">
+        <div className="w-10 h-10 rounded-full bg-secondary border-2 border-border flex items-center justify-center">
+          <ArrowDown className="w-5 h-5 text-[#dc2626]" />
+        </div>
+      </div>
+
+      {/* Output amount display */}
+      <div className="space-y-2">
+        <label className="text-sm font-semibold text-foreground">To (estimated)</label>
+        <InputGroup className="h-14 rounded-xl border-2 border-border bg-secondary">
+          <InputGroupInput
+            type="text"
+            placeholder="0"
+            value={outputAmount}
+            readOnly
+            className="text-right text-xl font-bold text-foreground"
+          />
+          <InputGroupAddon align="inline-end" className="pr-4 w-24 text-left justify-start">
+            <span className="font-bold text-foreground text-base">{outputAsset.symbol}</span>
+          </InputGroupAddon>
+        </InputGroup>
+        <div className="flex justify-end px-2 text-xs text-muted-foreground">
+          Balance: {formatBalance(outputAsset.balance, outputAsset.decimals)} {outputAsset.symbol}
+        </div>
+      </div>
+
+      {/* Submit button */}
+      <Button 
+        className="w-full h-12 rounded-xl text-base mt-2" 
+        onClick={handleTransaction} 
+        disabled={status !== "none"}
+      >
+        {(status === "signing" || status === "executing") && <Loader2 className="size-4 animate-spin mr-2" />}
+        {isDeposit ? "Deposit" : "Withdraw"}
+      </Button>
+    </div>
   );
 }

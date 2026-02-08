@@ -11,7 +11,8 @@ import { Asset, WormholeAsset } from "@/src/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Address, erc20Abi, zeroAddress } from "viem";
 import { useBalance, useConnection, useReadContracts } from "wagmi";
-import { chain } from "../config";
+import { chain } from "@/src/config";
+import { cn } from "@/src/lib/utils";
 
 interface WrapperDialogProps {
   implementationType: "WETH" | "ERC20" | "ERC4626";
@@ -68,12 +69,25 @@ export function WrapperDialog({ implementationType, wormholeAsset, underlying, r
     <Dialog>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
-        <Tabs>
-          <TabsList className="mb-4 w-full">
-            <TabsTrigger value="deposit">Deposit</TabsTrigger>
-            <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
+        <Tabs defaultValue="deposit" className="w-full">
+          <TabsList className={cn(
+            "w-full rounded-xl",
+            "bg-secondary border-2 border-border"
+          )}>
+            <TabsTrigger 
+              value="deposit"
+              className="rounded-lg data-[state=active]:bg-[#dc2626] data-[state=active]:text-white data-[state=active]:font-semibold transition-all"
+            >
+              Deposit
+            </TabsTrigger>
+            <TabsTrigger 
+              value="withdraw"
+              className="rounded-lg data-[state=active]:bg-[#dc2626] data-[state=active]:text-white data-[state=active]:font-semibold transition-all"
+            >
+              Withdraw
+            </TabsTrigger>
           </TabsList>
-          <TabsContent value="deposit">
+          <TabsContent value="deposit" className="mt-0">
             <WrapperDialogContent 
               implementationType={implementationType}
               transactionType="deposit" 
@@ -82,8 +96,8 @@ export function WrapperDialog({ implementationType, wormholeAsset, underlying, r
               refreshBalance={refreshBalance}
             />
           </TabsContent>
-          <TabsContent value="withdraw">
-          <WrapperDialogContent 
+          <TabsContent value="withdraw" className="mt-0">
+            <WrapperDialogContent 
               implementationType={implementationType}
               transactionType="withdraw" 
               wormholeAsset={wormholeAsset} 

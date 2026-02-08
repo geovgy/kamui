@@ -10,9 +10,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWriteContract } from "wagmi";
@@ -20,7 +20,8 @@ import { Address, encodePacked, getAddress, isAddress, parseAbi } from "viem";
 import { KAMUI_CONTRACT_ADDRESS, WORMHOLE_ASSET_ERC20_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_ERC4626_IMPLEMENTATION_ADDRESS } from "@/src/env";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { useConfig as useWagmiConfig } from "wagmi";
-import { useWormholeAssets } from "../hooks/use-subgraph";
+import { useWormholeAssets } from "@/src/hooks/use-subgraph";
+import { cn } from "@/src/lib/utils";
 
 type ImplementationType = "ERC20" | "ERC4626";
 
@@ -114,33 +115,37 @@ export function CreateAssetDialog({ trigger }: { trigger: React.ReactNode }) {
         <div className="flex flex-col gap-5">
           {/* Implementation type selection */}
           <div className="space-y-2">
-            <span className="text-sm font-medium">Implementation Type</span>
+            <label className="text-sm font-semibold text-foreground">Implementation Type</label>
             <RadioGroup
               value={implementationType}
               onValueChange={(v) => {
                 setImplementationType(v as ImplementationType);
                 setVaultAddress("");
               }}
-              className="grid grid-cols-2 gap-0 rounded-md border"
+              className="grid grid-cols-2 gap-2"
             >
               <label
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-l-md px-4 py-3 text-sm transition-colors ${
+                htmlFor="erc20-radio"
+                className={cn(
+                  "flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium border-2 transition-all",
                   implementationType === "ERC20"
-                    ? "bg-accent font-medium"
-                    : "text-muted-foreground"
-                }`}
+                    ? "bg-[#dc2626] text-white border-[#dc2626]"
+                    : "bg-background text-foreground border-border hover:border-[#dc2626]/50"
+                )}
               >
-                <RadioGroupItem value="ERC20" className="sr-only" />
+                <RadioGroupItem id="erc20-radio" value="ERC20" className="sr-only" />
                 ERC20
               </label>
               <label
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-r-md border-l px-4 py-3 text-sm transition-colors ${
+                htmlFor="erc4626-radio"
+                className={cn(
+                  "flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium border-2 transition-all",
                   implementationType === "ERC4626"
-                    ? "bg-accent font-medium"
-                    : "text-muted-foreground"
-                }`}
+                    ? "bg-[#dc2626] text-white border-[#dc2626]"
+                    : "bg-background text-foreground border-border hover:border-[#dc2626]/50"
+                )}
               >
-                <RadioGroupItem value="ERC4626" className="sr-only" />
+                <RadioGroupItem id="erc4626-radio" value="ERC4626" className="sr-only" />
                 ERC4626
               </label>
             </RadioGroup>
@@ -148,24 +153,28 @@ export function CreateAssetDialog({ trigger }: { trigger: React.ReactNode }) {
 
           {/* Token address input */}
           <div className="space-y-2">
-            <span className="text-sm font-medium">
+            <label htmlFor="token-address" className="text-sm font-semibold text-foreground">
               {implementationType === "ERC4626" ? "Underlying Token Address" : "Token Address"}
-            </span>
+            </label>
             <Input
+              id="token-address"
               placeholder="0x..."
               value={tokenAddress}
               onChange={(e) => setTokenAddress(e.target.value as `0x${string}`)}
+              className="border-2 border-border focus:border-[#dc2626] focus-visible:ring-[#dc2626]/20"
             />
           </div>
 
           {/* Vault address input - only for ERC4626 */}
           {implementationType === "ERC4626" && (
             <div className="space-y-2">
-              <span className="text-sm font-medium">Vault Address</span>
+              <label htmlFor="vault-address" className="text-sm font-semibold text-foreground">Vault Address</label>
               <Input
+                id="vault-address"
                 placeholder="0x..."
                 value={vaultAddress}
                 onChange={(e) => setVaultAddress(e.target.value as `0x${string}`)}
+                className="border-2 border-border focus:border-[#dc2626] focus-visible:ring-[#dc2626]/20"
               />
             </div>
           )}

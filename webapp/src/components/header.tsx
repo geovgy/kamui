@@ -1,26 +1,61 @@
 'use client'
 
 import { ConnectKitButton } from "connectkit"
-import Image from "next/image"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { cn } from "@/src/lib/utils"
+import { Circle, Zap } from "lucide-react"
 
 export function Header() {
+  const pathname = usePathname()
+  
+  const navItems = [
+    { href: "/", label: "Assets" },
+    { href: "/wormholes", label: "Wormholes" },
+  ]
+
   return (
-    <div className="flex justify-between items-center p-4">
-      <div className="flex items-center gap-6">
-        <Link href="/">
-          <Image src="/next.svg" alt="Logo" width={100} height={100} />
-        </Link>
-        <nav className="flex items-center gap-4">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Assets
+    <header className="sticky top-0 z-50 w-full">
+      <div className="glass mx-4 mt-4 rounded-2xl px-6 py-3">
+        <div className="flex items-center justify-between">
+          {/* Logo - Kamui Style */}
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-[#dc2626] transition-transform group-hover:scale-105">
+              <Circle className="w-5 h-5 text-white" strokeWidth={3} />
+              <div className="absolute inset-0 rounded-xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-[#dc2626]">Kamui</span>
+            </div>
           </Link>
-          <Link href="/wormholes" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            Wormhole Transfers
-          </Link>
-        </nav>
+
+          {/* Navigation */}
+          <nav className="hidden md:flex items-center gap-1 bg-muted/50 rounded-full p-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "relative px-4 py-2 text-sm font-medium rounded-full transition-all duration-300",
+                  pathname === item.href
+                    ? "text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {pathname === item.href && (
+                  <span className="absolute inset-0 rounded-full bg-[#dc2626]" />
+                )}
+                <span className="relative z-10">{item.label}</span>
+              </Link>
+            ))}
+          </nav>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3">
+            <ConnectKitButton theme="soft" />
+          </div>
+        </div>
       </div>
-      <ConnectKitButton />
-    </div>
+    </header>
   )
 }

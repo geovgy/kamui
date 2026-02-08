@@ -10,14 +10,33 @@ import {
 } from "@/src/components/ui/table";
 import { Button } from "@/src/components/ui/button";
 import { WrapperDialog } from "@/src/components/wrapper-dialog";
-import { TransferDialog } from "./transfer-dialog";
-import { ArrowUpRightIcon } from "lucide-react";
-import { useWormholeAssets } from "../hooks/use-subgraph";
+import { TransferDialog } from "@/src/components/transfer-dialog";
+import { ArrowUpRightIcon, Wallet, Eye, EyeOff } from "lucide-react";
+import { useWormholeAssets } from "@/src/hooks/use-subgraph";
 import { useConnection, useReadContracts } from "wagmi";
 import { Abi, Address, erc20Abi, erc4626Abi, formatUnits, getAddress, isAddressEqual, parseAbi } from "viem";
 import { useMemo } from "react";
-import { WORMHOLE_ASSET_ERC20_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_ERC4626_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_WETH_IMPLEMENTATION_ADDRESS } from "../env";
-import { useShieldedBalances } from "../hooks/use-shieldedpool";
+import { WORMHOLE_ASSET_ERC20_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_ERC4626_IMPLEMENTATION_ADDRESS, WORMHOLE_ASSET_WETH_IMPLEMENTATION_ADDRESS } from "@/src/env";
+import { useShieldedBalances } from "@/src/hooks/use-shieldedpool";
+import { cn } from "@/src/lib/utils";
+
+
+function BalanceDisplay({ amount, decimals, symbol }: { amount: bigint; decimals: number; symbol: string }) {
+  const formatted = formatUnits(amount, decimals)
+  const isZero = amount === 0n
+  
+  return (
+    <div className="flex flex-col items-end">
+      <span className={cn(
+        "font-mono text-sm font-medium",
+        isZero ? "text-muted-foreground" : "text-foreground"
+      )}>
+        {parseFloat(formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+      </span>
+      <span className="text-xs text-muted-foreground">{symbol}</span>
+    </div>
+  )
+}
 
 export function AssetsTable() {
   const { address } = useConnection();
@@ -116,56 +135,102 @@ export function AssetsTable() {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[200px]">Name</TableHead>
-          <TableHead className="text-center">Implementation</TableHead>
-          <TableHead className="text-right">My public balance</TableHead>
-          <TableHead className="text-right">My private balance</TableHead>
-          <TableHead className="text-right"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tokens.map((asset) => (
-          <TableRow key={asset.id}>
-            <TableCell className="font-medium">{asset.metadata.name}</TableCell>
-            <TableCell className="text-center">{asset.implementationType}</TableCell>
-            <TableCell className="text-right">{formatUnits(asset.wormholeBalances.publicBalance, asset.metadata.decimals)} {asset.metadata.symbol}</TableCell>
-            <TableCell className="text-right">{formatUnits(asset.wormholeBalances.privateBalance, 18)} {asset.metadata.symbol}</TableCell>
-            <TableCell className="text-right">
-              <WrapperDialog
-                implementationType={asset.implementationType}
-                wormholeAsset={asset.metadata}
-                underlying={asset.underlying}
-                refreshBalance={() => {
-                  refetch();
-                  refetchShieldedBalances();
-                }}
-                trigger={
-                  <Button variant="outline" className="rounded-full mr-2">
-                    Manage
-                  </Button>
-                }
-              />
-              <TransferDialog
-                wormholeAsset={asset.metadata}
-                balances={asset.wormholeBalances}
-                refetchBalances={() => {
-                  refetch();
-                  refetchShieldedBalances();
-                }}
-                trigger={
-                  <Button variant="outline" className="rounded-full">
-                    Send
-                    <ArrowUpRightIcon className="size-4" />
-                  </Button>
-                }
-              />
-            </TableCell>
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border/50 hover:bg-transparent">
+            <TableHead className="w-[280px] pl-6">Asset</TableHead>
+            <TableHead className="text-center">Type</TableHead>
+            <TableHead className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <Eye className="w-4 h-4 text-muted-foreground" />
+                Public Balance
+              </div>
+            </TableHead>
+            <TableHead className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <EyeOff className="w-4 h-4 text-muted-foreground" />
+                Private Balance
+              </div>
+            </TableHead>
+            <TableHead className="text-right pr-6">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {tokens.map((asset, index) => (
+            <TableRow 
+              key={asset.id}
+              className="group border-border/30 transition-colors hover:bg-muted/30"
+            >
+              <TableCell className="pl-6">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="font-semibold text-foreground">{asset.metadata.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{asset.metadata.symbol}</p>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="text-center">
+                <span className={cn(
+                  "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
+                  asset.implementationType === "WETH" && "bg-[#f97316]/10 text-[#f97316]",
+                  asset.implementationType === "ERC20" && "bg-[#dc2626]/10 text-[#dc2626]",
+                  asset.implementationType === "ERC4626" && "bg-[#1a1a1a]/10 text-[#1a1a1a]",
+                )}>
+                  {asset.implementationType}
+                </span>
+              </TableCell>
+              <TableCell className="text-right">
+                <BalanceDisplay 
+                  amount={asset.wormholeBalances.publicBalance} 
+                  decimals={asset.metadata.decimals} 
+                  symbol={asset.metadata.symbol}
+                />
+              </TableCell>
+              <TableCell className="text-right">
+                <BalanceDisplay 
+                  amount={asset.wormholeBalances.privateBalance} 
+                  decimals={asset.metadata.decimals} 
+                  symbol={asset.metadata.symbol}
+                />
+              </TableCell>
+              <TableCell className="text-right pr-6">
+                <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                  <WrapperDialog
+                    implementationType={asset.implementationType}
+                    wormholeAsset={asset.metadata}
+                    underlying={asset.underlying}
+                    refreshBalance={() => {
+                      refetch();
+                      refetchShieldedBalances();
+                    }}
+                    trigger={
+                      <Button variant="pill" size="sm">
+                        <Wallet className="w-4 h-4 mr-1.5" />
+                        Manage
+                      </Button>
+                    }
+                  />
+                  <TransferDialog
+                    wormholeAsset={asset.metadata}
+                    balances={asset.wormholeBalances}
+                    refetchBalances={() => {
+                      refetch();
+                      refetchShieldedBalances();
+                    }}
+                    trigger={
+                      <Button variant="pill" size="sm">
+                        <ArrowUpRightIcon className="w-4 h-4 mr-1" />
+                        Send
+                      </Button>
+                    }
+                  />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
