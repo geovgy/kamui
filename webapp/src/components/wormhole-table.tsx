@@ -211,7 +211,7 @@ export function WormholesTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(data ?? []).map((entry) => (
+          {(data ?? []).sort((a, b) => Number(b.entryId) - Number(a.entryId)).map((entry) => (
             <TableRow 
               key={entry.id}
               className="group border-border/30 transition-colors hover:bg-muted/30"

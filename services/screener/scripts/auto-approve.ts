@@ -33,7 +33,7 @@ async function main() {
 
   console.log("\nApproving entries...");
 
-  const approvals = wormholeEntries.map((entry) => ({
+  const approvals = wormholeEntries.slice(4).map((entry) => ({
     entryId: entry.entryId,
     approved: true,
   }));
