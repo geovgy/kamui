@@ -48,8 +48,11 @@ export function AssetsTable() {
   const { data: metadatas, refetch } = useReadContracts({
     query: {
       enabled: !!wormholeAssets.length,
+      select: (data) => {
+        return data.map((d) => d.result);
+      },
     },
-    allowFailure: false,
+    allowFailure: true,
     contracts: wormholeAssets.map((asset) => {
       const implementationType = getImplementationType(asset.implementation.address);
       const calls = [
