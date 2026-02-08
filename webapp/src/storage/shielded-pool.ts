@@ -234,7 +234,6 @@ export class ShieldedPool {
     }
 
     // Save new output notes as shielded entries (skip withdrawals)
-    const assetId = getAssetId(args.token, args.tokenId)
     const newEntries: NoteDBShieldedEntry[] = args.outputNotes
       .map((note, index) => ({ note, originalIndex: index }))
       .filter(({ note }) => note.transfer_type !== TransferType.WITHDRAWAL)
@@ -252,7 +251,7 @@ export class ShieldedPool {
           note: {
             account: recipient,
             asset: args.token,
-            assetId: assetId.toString(),
+            assetId: args.tokenId?.toString(),
             blinding: note.blinding.toString(),
             amount: note.amount.toString(),
             transferType: note.transfer_type,
@@ -527,7 +526,7 @@ export function toShieldedTxStruct(args: {
     wormholeNullifier,
     shieldedRoot: toHex(args.shieldedRoot, { size: 32 }),
     nullifiers: args.inputs.map(input => toHex(getNullifier(args.sender, assetId, input), { size: 32 })),
-    commitments: args.outputs.map(output => getCommitment(assetId, output)),
+    commitments: args.outputs.filter(output => output.transfer_type === TransferType.TRANSFER).map(output => getCommitment(assetId, output)),
     withdrawals,
   }
 }

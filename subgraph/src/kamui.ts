@@ -273,9 +273,7 @@ export function handleWormholeEntry(event: WormholeEntryEvent): void {
 }
 
 export function handleWormholeNullifier(event: WormholeNullifierEvent): void {
-  let entity = new WormholeNullifier(
-    Bytes.fromI32(event.params.nullifier.toI32())
-  )
+  let entity = new WormholeNullifier(event.params.nullifier)
   entity.nullifier = event.params.nullifier
 
   entity.blockNumber = event.block.number

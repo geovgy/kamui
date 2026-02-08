@@ -11,7 +11,7 @@ export interface NoteDBShieldedEntry {
   note: {
     account: Address
     asset: Address
-    assetId: string
+    assetId: string | undefined
     blinding: string
     amount: string
     transferType: TransferType

@@ -150,7 +150,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
         await handleWormholeTransaction();
         break;
       case "unshield":
-        await handleUnshieldTransaction();
+        await handleShieldedTransaction({ unshield: true });
         break;
       case "public":
         await handlePublicTransaction();
@@ -210,10 +210,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
     }
     setStatus(undefined);
   }
-  // TODO: Implement unshield transaction
-  async function handleUnshieldTransaction() {
-    throw new Error("Not implemented");
-  }
+
   // TODO: Implement public transaction
   async function handlePublicTransaction() {
     try {
@@ -245,7 +242,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
     setStatus(undefined);
   }
   // TODO: Implement shielded transaction
-  async function handleShieldedTransaction(unshield?: boolean) {
+  async function handleShieldedTransaction({ unshield }: { unshield: boolean } = { unshield: false }) {
     try {
       if (!recipient?.address) {
         throw new Error("Invalid recipient address");
