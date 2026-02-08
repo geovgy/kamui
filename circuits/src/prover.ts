@@ -48,23 +48,23 @@ export class Prover {
     this._initialized = true
   }
 
-  async prove(inputs: InputMap, options: { keccak: boolean } = { keccak: false }) {
+  async prove(inputs: InputMap, options: { keccak: boolean } = { keccak: true }) {
     await this.init()
     const { witness } = await this.noir.execute(inputs)
     return await this.backend.generateProof(witness, options)
   }
 
-  async verify(proof: ProofData, options: { keccak: boolean } = { keccak: false }) {
+  async verify(proof: ProofData, options: { keccak: boolean } = { keccak: true }) {
     await this.init()
     return await this.backend.verifyProof(proof, options)
   }
 
-  async getVerificationKey(options: { keccak: boolean } = { keccak: false }) {
+  async getVerificationKey(options: { keccak: boolean } = { keccak: true }) {
     await this.init()
     return await this.backend.getVerificationKey(options)
   }
 
-  async getSolidityVerifier(options: { keccak: boolean } = { keccak: false }) {
+  async getSolidityVerifier(options: { keccak: boolean } = { keccak: true }) {
     const vk = await this.getVerificationKey(options)
     return await this.backend.getSolidityVerifier(vk, options)
   }

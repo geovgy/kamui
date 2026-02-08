@@ -261,7 +261,7 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
       // Sign EIP-712 message
       // Format public inputs
       setStatus("signing");
-      const { circuitInputs, entries, outputNotes, typedData } = await shieldedPool.signShieldedTransfer(wagmiConfig, {
+      const { circuitInputs, entries, outputNotes, typedData, messageHash } = await shieldedPool.signShieldedTransfer(wagmiConfig, {
         chainId: client.chain.id,
         receiver: recipient.address,
         token: wormholeAsset.address,
@@ -290,6 +290,8 @@ export function TransferDialog({ trigger, wormholeAsset, balances, refetchBalanc
           amount: withdrawal.amount.toString(),
         })),
       };
+
+      console.log("Message hash:", messageHash);
       
       // Call relayer to execute transaction
       const response = await fetch("/api/shielded-relay", {

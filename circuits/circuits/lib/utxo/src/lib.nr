@@ -26,11 +26,11 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
 
     // Split 256-bit hash into two 128-bit halves for public output
     // Each half fits safely within the BN254 scalar field
-    let mut hashed_message_hi: Field = 0;
-    let mut hashed_message_lo: Field = 0;
+    let mut hashed_message_hi: [u8; 16] = [0; 16];
+    let mut hashed_message_lo: [u8; 16] = [0; 16];
     for i in 0..16 {
-        hashed_message_hi = hashed_message_hi * 256 + hashed_message[i] as Field;
-        hashed_message_lo = hashed_message_lo * 256 + hashed_message[i + 16] as Field;
+        hashed_message_hi[i] = hashed_message[i];
+        hashed_message_lo[i] = hashed_message[i + 16];
     }
 
     let joinsplit = JoinSplit::new(
@@ -47,5 +47,5 @@ pub fn execute_utxo<let M: u32, let N: u32, let C: u32>(
         wormhole_pseudo_secret
     );
     let (wormhole_nullifier, input_nullifiers, output_commitments) = joinsplit.execute();
-    (hashed_message_hi, hashed_message_lo, wormhole_nullifier, input_nullifiers, output_commitments)
+    (Field::from_be_bytes(hashed_message_hi), Field::from_be_bytes(hashed_message_lo), wormhole_nullifier, input_nullifiers, output_commitments)
 }
